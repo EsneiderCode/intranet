@@ -1,0 +1,547 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, Trash2, Users, CalendarCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { GERMAN_STATES } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+
+export type HolidayItem = {
+  id: string;
+  name: string;
+  date: string; // ISO string
+  state: string | null;
+  assignedCount: number;
+  assignedUserIds: string[];
+};
+
+export type TechnicianOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+};
+
+interface HolidayManagementProps {
+  holidays: HolidayItem[];
+  technicians: TechnicianOption[];
+}
+
+export function HolidayManagement({ holidays: initialHolidays, technicians }: HolidayManagementProps) {
+  const router = useRouter();
+  const [holidays, setHolidays] = useState<HolidayItem[]>(initialHolidays);
+
+  // Create form state
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDate, setNewDate] = useState("");
+  const [newState, setNewState] = useState("ALL");
+  const [createError, setCreateError] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Delete dialog
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; holidayId: string; name: string }>({
+    open: false,
+    holidayId: "",
+    name: "",
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  // Assign dialog
+  const [assignDialog, setAssignDialog] = useState<{
+    open: boolean;
+    holidayId: string;
+    holidayName: string;
+    selectedUserIds: string[];
+  }>({
+    open: false,
+    holidayId: "",
+    holidayName: "",
+    selectedUserIds: [],
+  });
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignError, setAssignError] = useState("");
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim() || !newDate) return;
+    setCreateError("");
+    setIsCreating(true);
+    try {
+      const res = await fetch("/api/holidays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          date: newDate,
+          state: newState === "ALL" ? undefined : newState,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCreateError(data.error ?? "Error al crear");
+        return;
+      }
+      setHolidays((prev) => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)));
+      setNewName("");
+      setNewDate("");
+      setNewState("ALL");
+      setShowCreateForm(false);
+      router.refresh();
+    } catch {
+      setCreateError("Error de red. Inténtalo de nuevo.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  async function handleDelete() {
+    setIsDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/holidays/${deleteDialog.holidayId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.error ?? "Error al eliminar");
+        return;
+      }
+      setHolidays((prev) => prev.filter((h) => h.id !== deleteDialog.holidayId));
+      setDeleteDialog({ open: false, holidayId: "", name: "" });
+      router.refresh();
+    } catch {
+      setDeleteError("Error de red. Inténtalo de nuevo.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  function openAssignDialog(holiday: HolidayItem) {
+    setAssignDialog({
+      open: true,
+      holidayId: holiday.id,
+      holidayName: holiday.name,
+      selectedUserIds: [...holiday.assignedUserIds],
+    });
+    setAssignError("");
+  }
+
+  function toggleUser(userId: string) {
+    setAssignDialog((prev) => ({
+      ...prev,
+      selectedUserIds: prev.selectedUserIds.includes(userId)
+        ? prev.selectedUserIds.filter((id) => id !== userId)
+        : [...prev.selectedUserIds, userId],
+    }));
+  }
+
+  async function handleAssign() {
+    setIsAssigning(true);
+    setAssignError("");
+    try {
+      const res = await fetch("/api/holidays/assign", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          holidayId: assignDialog.holidayId,
+          userIds: assignDialog.selectedUserIds,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAssignError(data.error ?? "Error al guardar asignaciones");
+        return;
+      }
+      // Update local state
+      setHolidays((prev) =>
+        prev.map((h) =>
+          h.id === assignDialog.holidayId
+            ? {
+                ...h,
+                assignedUserIds: assignDialog.selectedUserIds,
+                assignedCount: assignDialog.selectedUserIds.length,
+              }
+            : h
+        )
+      );
+      setAssignDialog({ open: false, holidayId: "", holidayName: "", selectedUserIds: [] });
+      router.refresh();
+    } catch {
+      setAssignError("Error de red. Inténtalo de nuevo.");
+    } finally {
+      setIsAssigning(false);
+    }
+  }
+
+  function formatHolidayDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarCheck className="h-5 w-5 text-[#1E3A5F] dark:text-blue-400" />
+          <h3 className="font-semibold text-gray-900 dark:text-white">Gestión de festivos</h3>
+        </div>
+        <Button
+          size="sm"
+          className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
+          onClick={() => setShowCreateForm((v) => !v)}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Nuevo festivo
+        </Button>
+      </div>
+
+      {/* Create form */}
+      {showCreateForm && (
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Añadir festivo
+          </h4>
+          {createError && (
+            <Alert variant="destructive" className="mb-3">
+              <AlertDescription>{createError}</AlertDescription>
+            </Alert>
+          )}
+          <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="hName">Nombre</Label>
+              <Input
+                id="hName"
+                placeholder="Ej. Tag der Deutschen Einheit"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="hDate">Fecha</Label>
+              <Input
+                id="hDate"
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="hState">Estado federal (opcional)</Label>
+              <Select value={newState} onValueChange={setNewState}>
+                <SelectTrigger id="hState">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos los estados</SelectItem>
+                  {GERMAN_STATES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-3 flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setCreateError("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isCreating || !newName.trim() || !newDate}
+                className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
+              >
+                {isCreating ? "Guardando..." : "Guardar festivo"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Holidays list */}
+      {holidays.length === 0 ? (
+        <div className="text-center py-10 text-gray-500 dark:text-gray-400 text-sm">
+          No hay festivos registrados. Crea el primero con el botón de arriba.
+        </div>
+      ) : (
+        <>
+          {/* Mobile cards */}
+          <div className="space-y-2 md:hidden">
+            {holidays.map((h) => (
+              <div
+                key={h.id}
+                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-sm text-gray-900 dark:text-white">{h.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {formatHolidayDate(h.date)}
+                    </p>
+                    {h.state && (
+                      <span className="inline-block mt-1 text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                        {h.state}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                    {h.assignedCount} técnico{h.assignedCount !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-7 text-xs"
+                    onClick={() => openAssignDialog(h)}
+                  >
+                    <Users className="h-3 w-3 mr-1" /> Asignar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => setDeleteDialog({ open: true, holidayId: h.id, name: h.name })}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">
+                    Festivo
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">
+                    Fecha
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">
+                    Estado federal
+                  </th>
+                  <th className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">
+                    Asignados
+                  </th>
+                  <th className="py-3 px-4" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                {holidays.map((h) => (
+                  <tr
+                    key={h.id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  >
+                    <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">
+                      {h.name}
+                    </td>
+                    <td className="py-3 px-4 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      {formatHolidayDate(h.date)}
+                    </td>
+                    <td className="py-3 px-4">
+                      {h.state ? (
+                        <span className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                          {h.state}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Nacional</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center text-gray-700 dark:text-gray-300">
+                      {h.assignedCount}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => openAssignDialog(h)}
+                        >
+                          <Users className="h-3 w-3 mr-1" /> Asignar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() =>
+                            setDeleteDialog({ open: true, holidayId: h.id, name: h.name })
+                          }
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Delete Dialog */}
+      <Dialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialog({ open: false, holidayId: "", name: "" });
+          setDeleteError("");
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar festivo</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            ¿Eliminar el festivo <strong>&ldquo;{deleteDialog.name}&rdquo;</strong>? También se
+            eliminará de todos los técnicos que lo tengan asignado.
+          </p>
+          {deleteError && (
+            <Alert variant="destructive">
+              <AlertDescription>{deleteError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog({ open: false, holidayId: "", name: "" })}
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Dialog */}
+      <Dialog
+        open={assignDialog.open}
+        onOpenChange={(open) => {
+          if (!open)
+            setAssignDialog({ open: false, holidayId: "", holidayName: "", selectedUserIds: [] });
+          setAssignError("");
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Asignar festivo a técnicos</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Festivo: <strong className="text-gray-900 dark:text-white">{assignDialog.holidayName}</strong>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Selecciona los técnicos que tienen este festivo. Los cambios reemplazarán las asignaciones actuales.
+            </p>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {technicians.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">
+                  No hay técnicos registrados.
+                </p>
+              )}
+              {technicians.map((tech) => {
+                const isSelected = assignDialog.selectedUserIds.includes(tech.id);
+                return (
+                  <button
+                    key={tech.id}
+                    type="button"
+                    onClick={() => toggleUser(tech.id)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors text-left",
+                      isSelected
+                        ? "border-[#1E3A5F] bg-blue-50 text-[#1E3A5F] dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
+                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700/50"
+                    )}
+                  >
+                    <span className="font-medium">
+                      {tech.firstName} {tech.lastName}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full",
+                        isSelected
+                          ? "bg-[#1E3A5F] text-white dark:bg-blue-600"
+                          : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                      )}
+                    >
+                      {isSelected ? "Asignado" : "Sin asignar"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {assignError && (
+              <Alert variant="destructive">
+                <AlertDescription>{assignError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                setAssignDialog({
+                  open: false,
+                  holidayId: "",
+                  holidayName: "",
+                  selectedUserIds: [],
+                })
+              }
+              disabled={isAssigning}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
+              onClick={handleAssign}
+              disabled={isAssigning}
+            >
+              {isAssigning ? "Guardando..." : "Guardar asignaciones"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

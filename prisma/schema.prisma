@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TECHNICIAN
+  ADMIN
+}
+
+enum ShirtSize {
+  XS
+  S
+  M
+  L
+  XL
+  XXL
+  XXXL
+}
+
+enum ItemStatus {
+  AVAILABLE
+  IN_USE
+  IN_REPAIR
+  DECOMMISSIONED
+}
+
+enum InventoryAction {
+  CREATED
+  UPDATED
+  ASSIGNED
+  TRANSFERRED
+  STATUS_CHANGED
+  DELETED
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum VacationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  VACATION_APPROVED
+  VACATION_REJECTED
+  ITEM_ASSIGNED
+  TRANSFER_APPROVED
+  TRANSFER_REJECTED
+  ITEM_UPDATED
+  ACCOUNT_CREATED
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  firstName          String
+  lastName           String
+  birthDate          DateTime
+  email              String    @unique
+  password           String
+  phone              String    @default("")
+  shirtSize          ShirtSize @default(M)
+  pantsSize          String    @default("")
+  shoeSize           String    @default("")
+  role               Role      @default(TECHNICIAN)
+  avatarUrl          String?
+  vacationDaysTotal  Int       @default(24)
+  state              String    @default("")
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  inviteToken        String?   @unique
+  inviteTokenExpiry  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relations
+  assignedItems        InventoryItem[]    @relation("AssignedTo")
+  addedItems           InventoryItem[]    @relation("AddedBy")
+  historyPerformed     InventoryHistory[] @relation("PerformedBy")
+  historyFrom          InventoryHistory[] @relation("FromUser")
+  historyTo            InventoryHistory[] @relation("ToUser")
+  transfersRequested   TransferRequest[]  @relation("RequestedBy")
+  transfersTo          TransferRequest[]  @relation("TransferTo")
+  vacationRequests     VacationRequest[]  @relation("VacationUser")
+  vacationsResolved    VacationRequest[]  @relation("ResolvedBy")
+  holidays             UserHoliday[]      @relation("UserHolidays")
+  holidaysAssigned     UserHoliday[]      @relation("AssignedByUser")
+  holidaysCreated      Holiday[]          @relation("CreatedBy")
+  notifications        Notification[]     @relation("UserNotifications")
+
+  @@map("users")
+}
+
+model InventoryItem {
+  id           String     @id @default(cuid())
+  name         String
+  description  String     @default("")
+  imageUrl     String     @default("")
+  qrCode       String     @default("")
+  status       ItemStatus @default(AVAILABLE)
+  assignedToId String?
+  addedById    String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  assignedTo       User?              @relation("AssignedTo", fields: [assignedToId], references: [id])
+  addedBy          User               @relation("AddedBy", fields: [addedById], references: [id])
+  history          InventoryHistory[]
+  transferRequests TransferRequest[]
+
+  @@map("inventory_items")
+}
+
+model InventoryHistory {
+  id           String          @id @default(cuid())
+  itemId       String
+  action       InventoryAction
+  fromUserId   String?
+  toUserId     String?
+  performedById String
+  notes        String?
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+
+  // Relations
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  fromUser    User?         @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser      User?         @relation("ToUser", fields: [toUserId], references: [id])
+  performedBy User          @relation("PerformedBy", fields: [performedById], references: [id])
+
+  @@map("inventory_history")
+}
+
+model TransferRequest {
+  id            String         @id @default(cuid())
+  itemId        String
+  requestedById String
+  toUserId      String
+  status        TransferStatus @default(PENDING)
+  adminNote     String?
+  reason        String         @default("")
+  location      String         @default("")
+  createdAt     DateTime       @default(now())
+  resolvedAt    DateTime?
+
+  // Relations
+  item        InventoryItem @relation(fields: [itemId], references: [id])
+  requestedBy User          @relation("RequestedBy", fields: [requestedById], references: [id])
+  toUser      User          @relation("TransferTo", fields: [toUserId], references: [id])
+
+  @@map("transfer_requests")
+}
+
+model VacationRequest {
+  id                   String         @id @default(cuid())
+  userId               String
+  startDate            DateTime
+  endDate              DateTime
+  status               VacationStatus @default(PENDING)
+  adminNote            String?
+  description          String         @default("")
+  workingDaysRequested Int
+  requestedAt          DateTime       @default(now())
+  resolvedAt           DateTime?
+  resolvedById         String?
+
+  // Relations
+  user       User  @relation("VacationUser", fields: [userId], references: [id])
+  resolvedBy User? @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@map("vacation_requests")
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  name        String
+  date        DateTime
+  state       String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  createdBy User          @relation("CreatedBy", fields: [createdById], references: [id])
+  users     UserHoliday[]
+
+  @@map("holidays")
+}
+
+model UserHoliday {
+  userId       String
+  holidayId    String
+  assignedById String
+  assignedAt   DateTime @default(now())
+
+  // Relations
+  user       User    @relation("UserHolidays", fields: [userId], references: [id])
+  holiday    Holiday @relation(fields: [holidayId], references: [id])
+  assignedBy User    @relation("AssignedByUser", fields: [assignedById], references: [id])
+
+  @@id([userId, holidayId])
+  @@map("user_holidays")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  relatedId String?
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user User @relation("UserNotifications", fields: [userId], references: [id])
+
+  @@map("notifications")
+}

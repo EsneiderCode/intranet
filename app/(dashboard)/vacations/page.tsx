@@ -1,0 +1,128 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { VacationPageClient } from "@/components/vacations/VacationPageClient";
+
+export const dynamic = "force-dynamic";
+
+export default async function VacationsPage() {
+  const session = await auth();
+  if (!session) redirect("/login");
+
+  const isAdmin = session.user.role === "ADMIN";
+
+  // ── TECHNICIAN: fetch own data ──────────────────────────────────────────────
+  if (!isAdmin) {
+    const [requests, user] = await Promise.all([
+      prisma.vacationRequest.findMany({
+        where: { userId: session.user.id },
+        include: {
+          resolvedBy: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { requestedAt: "desc" },
+      }),
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          vacationDaysTotal: true,
+          holidays: {
+            include: { holiday: true },
+            orderBy: { holiday: { date: "asc" } },
+          },
+        },
+      }),
+    ]);
+
+    if (!user) redirect("/login");
+
+    const serializedRequests = requests.map((r) => ({
+      id: r.id,
+      startDate: r.startDate.toISOString(),
+      endDate: r.endDate.toISOString(),
+      status: r.status as "PENDING" | "APPROVED" | "REJECTED",
+      workingDaysRequested: r.workingDaysRequested,
+      requestedAt: r.requestedAt.toISOString(),
+      adminNote: r.adminNote,
+      description: r.description,
+      resolvedBy: r.resolvedBy
+        ? { firstName: r.resolvedBy.firstName, lastName: r.resolvedBy.lastName }
+        : null,
+    }));
+
+    return (
+      <VacationPageClient
+        role="TECHNICIAN"
+        initialRequests={serializedRequests}
+        initialUser={{
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          vacationDaysTotal: user.vacationDaysTotal,
+          holidays: user.holidays.map((uh) => ({
+            id: uh.holiday.id,
+            name: uh.holiday.name,
+            date: uh.holiday.date.toISOString(),
+            state: uh.holiday.state,
+          })),
+        }}
+      />
+    );
+  }
+
+  // ── ADMIN: fetch all data ───────────────────────────────────────────────────
+  const [allRequests, allUsers, allHolidays] = await Promise.all([
+    prisma.vacationRequest.findMany({
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true } },
+        resolvedBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: [{ status: "asc" }, { requestedAt: "desc" }],
+    }),
+    prisma.user.findMany({
+      where: { role: "TECHNICIAN", isActive: true },
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    }),
+    prisma.holiday.findMany({
+      include: {
+        _count: { select: { users: true } },
+        users: { select: { userId: true } },
+      },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+
+  return (
+    <VacationPageClient
+      role="ADMIN"
+      adminAllRequests={allRequests.map((r) => ({
+        id: r.id,
+        startDate: r.startDate.toISOString(),
+        endDate: r.endDate.toISOString(),
+        status: r.status as "PENDING" | "APPROVED" | "REJECTED",
+        workingDaysRequested: r.workingDaysRequested,
+        requestedAt: r.requestedAt.toISOString(),
+        adminNote: r.adminNote,
+        description: r.description,
+        user: r.user
+          ? { id: r.user.id, firstName: r.user.firstName, lastName: r.user.lastName }
+          : undefined,
+        resolvedBy: r.resolvedBy
+          ? { firstName: r.resolvedBy.firstName, lastName: r.resolvedBy.lastName }
+          : null,
+      }))}
+      adminAllUsers={allUsers}
+      adminAllHolidays={allHolidays.map((h) => ({
+        id: h.id,
+        name: h.name,
+        date: h.date.toISOString(),
+        state: h.state,
+        assignedCount: h._count.users,
+        assignedUserIds: h.users.map((u) => u.userId),
+      }))}
+    />
+  );
+}

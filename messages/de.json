@@ -1,0 +1,111 @@
+{
+  "auth": {
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "email": "E-Mail-Adresse",
+    "password": "Passwort",
+    "emailPlaceholder": "ihre@email.com",
+    "passwordPlaceholder": "••••••••",
+    "loginButton": "Einloggen",
+    "loggingIn": "Einloggen...",
+    "loginError": "Falsche Anmeldedaten. Bitte versuchen Sie es erneut.",
+    "welcomeBack": "Willkommen zurück",
+    "loginSubtitle": "Geben Sie Ihre Zugangsdaten ein, um auf das System zuzugreifen"
+  },
+  "nav": {
+    "dashboard": "Übersicht",
+    "inventory": "Inventar",
+    "vacations": "Urlaub",
+    "users": "Benutzer",
+    "reports": "Berichte",
+    "settings": "Einstellungen",
+    "profile": "Mein Profil",
+    "notifications": "Benachrichtigungen"
+  },
+  "common": {
+    "loading": "Laden...",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "create": "Erstellen",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "export": "Exportieren",
+    "confirm": "Bestätigen",
+    "back": "Zurück",
+    "yes": "Ja",
+    "no": "Nein",
+    "actions": "Aktionen",
+    "status": "Status",
+    "name": "Name",
+    "description": "Beschreibung",
+    "date": "Datum",
+    "noData": "Keine Daten verfügbar",
+    "error": "Ein Fehler ist aufgetreten",
+    "success": "Vorgang erfolgreich"
+  },
+  "dashboard": {
+    "title": "Übersicht",
+    "welcome": "Willkommen",
+    "activeTechnicians": "Aktive Techniker",
+    "pendingVacations": "Ausstehende Urlaubsanträge",
+    "pendingTransfers": "Ausstehende Transfers",
+    "totalItems": "Inventarelemente",
+    "recentActivity": "Letzte Aktivitäten"
+  },
+  "inventory": {
+    "title": "Inventar",
+    "addItem": "Element hinzufügen",
+    "itemName": "Elementname",
+    "itemDescription": "Beschreibung",
+    "assignedTo": "Zugewiesen an",
+    "unassigned": "Nicht zugewiesen",
+    "status": {
+      "AVAILABLE": "Verfügbar",
+      "IN_USE": "In Verwendung",
+      "IN_REPAIR": "In Reparatur",
+      "DECOMMISSIONED": "Außer Betrieb"
+    },
+    "viewQR": "QR anzeigen",
+    "history": "Verlauf",
+    "transfer": "Transfer anfragen"
+  },
+  "vacations": {
+    "title": "Urlaub",
+    "request": "Urlaub beantragen",
+    "daysTotal": "Gesamttage",
+    "daysUsed": "Genutzte Tage",
+    "daysRemaining": "Verbleibende Tage",
+    "status": {
+      "PENDING": "Ausstehend",
+      "APPROVED": "Genehmigt",
+      "REJECTED": "Abgelehnt"
+    },
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "workingDays": "Arbeitstage",
+    "holidays": "Feiertage",
+    "effectiveDays": "Effektiv abzuziehende Tage"
+  },
+  "users": {
+    "title": "Benutzer",
+    "addUser": "Benutzer hinzufügen",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "email": "E-Mail-Adresse",
+    "phone": "Telefon",
+    "role": "Rolle",
+    "state": "Bundesland",
+    "shirtSize": "Oberteilgröße",
+    "pantsSize": "Hosengröße",
+    "birthDate": "Geburtsdatum",
+    "vacationDays": "Urlaubstage",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "roles": {
+      "ADMIN": "Administrator",
+      "TECHNICIAN": "Techniker"
+    }
+  }
+}

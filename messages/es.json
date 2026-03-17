@@ -1,0 +1,111 @@
+{
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "emailPlaceholder": "tu@email.com",
+    "passwordPlaceholder": "••••••••",
+    "loginButton": "Entrar",
+    "loggingIn": "Entrando...",
+    "loginError": "Credenciales incorrectas. Inténtalo de nuevo.",
+    "welcomeBack": "Bienvenido de nuevo",
+    "loginSubtitle": "Ingresa tus credenciales para acceder al sistema"
+  },
+  "nav": {
+    "dashboard": "Panel principal",
+    "inventory": "Inventario",
+    "vacations": "Vacaciones",
+    "users": "Usuarios",
+    "reports": "Reportes",
+    "settings": "Configuración",
+    "profile": "Mi perfil",
+    "notifications": "Notificaciones"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "confirm": "Confirmar",
+    "back": "Volver",
+    "yes": "Sí",
+    "no": "No",
+    "actions": "Acciones",
+    "status": "Estado",
+    "name": "Nombre",
+    "description": "Descripción",
+    "date": "Fecha",
+    "noData": "No hay datos disponibles",
+    "error": "Ha ocurrido un error",
+    "success": "Operación exitosa"
+  },
+  "dashboard": {
+    "title": "Panel principal",
+    "welcome": "Bienvenido",
+    "activeTechnicians": "Técnicos activos",
+    "pendingVacations": "Vacaciones pendientes",
+    "pendingTransfers": "Transferencias pendientes",
+    "totalItems": "Ítems en inventario",
+    "recentActivity": "Actividad reciente"
+  },
+  "inventory": {
+    "title": "Inventario",
+    "addItem": "Agregar ítem",
+    "itemName": "Nombre del ítem",
+    "itemDescription": "Descripción",
+    "assignedTo": "Asignado a",
+    "unassigned": "Sin asignar",
+    "status": {
+      "AVAILABLE": "Disponible",
+      "IN_USE": "En uso",
+      "IN_REPAIR": "En reparación",
+      "DECOMMISSIONED": "Dado de baja"
+    },
+    "viewQR": "Ver QR",
+    "history": "Historial",
+    "transfer": "Solicitar transferencia"
+  },
+  "vacations": {
+    "title": "Vacaciones",
+    "request": "Solicitar vacaciones",
+    "daysTotal": "Días totales",
+    "daysUsed": "Días usados",
+    "daysRemaining": "Días restantes",
+    "status": {
+      "PENDING": "Pendiente",
+      "APPROVED": "Aprobado",
+      "REJECTED": "Rechazado"
+    },
+    "startDate": "Fecha inicio",
+    "endDate": "Fecha fin",
+    "workingDays": "Días laborables",
+    "holidays": "Festivos",
+    "effectiveDays": "Días efectivos a descontar"
+  },
+  "users": {
+    "title": "Usuarios",
+    "addUser": "Agregar usuario",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "email": "Correo electrónico",
+    "phone": "Teléfono",
+    "role": "Rol",
+    "state": "Estado federal",
+    "shirtSize": "Talla de torso",
+    "pantsSize": "Talla de pantalón",
+    "birthDate": "Fecha de nacimiento",
+    "vacationDays": "Días de vacaciones",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "roles": {
+      "ADMIN": "Administrador",
+      "TECHNICIAN": "Técnico"
+    }
+  }
+}
