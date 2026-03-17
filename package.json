@@ -57,6 +57,9 @@
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
+  "prisma": {
+    "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
