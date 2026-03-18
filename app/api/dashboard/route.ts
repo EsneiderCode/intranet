@@ -107,13 +107,20 @@ export async function GET() {
   // TECHNICIAN dashboard
   const userId = session.user.id;
 
+  // Get user's squad to include squad items
+  const techUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { squadId: true, squad: { select: { id: true, name: true } } },
+  });
+
   const [
     assignedItems,
+    squadItems,
     userWithVacations,
     upcomingVacations,
     pendingVacationsCount,
   ] = await Promise.all([
-    // Items assigned to this technician
+    // Items directly assigned to this technician
     prisma.inventoryItem.findMany({
       where: { assignedToId: userId },
       select: {
@@ -126,6 +133,22 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
       take: 6,
     }),
+
+    // Items assigned to the technician's squad
+    techUser?.squadId
+      ? prisma.inventoryItem.findMany({
+          where: { squadId: techUser.squadId },
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            imageUrl: true,
+            updatedAt: true,
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 6,
+        })
+      : Promise.resolve([]),
 
     // User with approved vacations for stats (current year only)
     prisma.user.findUnique({
@@ -180,6 +203,11 @@ export async function GET() {
   return NextResponse.json({
     role: "TECHNICIAN",
     assignedItems: assignedItems.map((i) => ({
+      ...i,
+      updatedAt: i.updatedAt.toISOString(),
+    })),
+    squad: techUser?.squad ?? null,
+    squadItems: squadItems.map((i) => ({
       ...i,
       updatedAt: i.updatedAt.toISOString(),
     })),

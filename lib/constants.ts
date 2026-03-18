@@ -61,6 +61,7 @@ export const NAV_LINKS = {
   inventory: "/inventory",
   vacations: "/vacations",
   users: "/users",
+  squads: "/squads",
   reports: "/reports",
   settings: "/settings",
   profile: "/profile",

@@ -40,6 +40,7 @@ import {
   Trash2,
   QrCode,
   Plus,
+  HardHat,
 } from "lucide-react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
@@ -51,8 +52,10 @@ export interface InventoryRow {
   qrCode: string;
   status: "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED";
   assignedToId?: string | null;
+  squadId?: string | null;
   createdAt: string;
   assignedTo?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null;
+  squad?: { id: string; name: string } | null;
   addedBy: { id: string; firstName: string; lastName: string };
 }
 
@@ -62,11 +65,17 @@ interface Technician {
   lastName: string;
 }
 
+interface Squad {
+  id: string;
+  name: string;
+}
+
 interface InventoryTableProps {
   data: InventoryRow[];
   isAdmin: boolean;
   currentUserId: string;
   technicians?: Technician[];
+  squads?: Squad[];
 }
 
 const col = createColumnHelper<InventoryRow>();
@@ -79,19 +88,18 @@ const STATUS_OPTIONS = [
   { value: "DECOMMISSIONED", label: "Dado de baja" },
 ];
 
-export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] }: InventoryTableProps) {
+export function InventoryTable({ data, isAdmin, currentUserId, technicians = [], squads = [] }: InventoryTableProps) {
   const router = useRouter();
   const ITEMS_PER_PAGE = 20;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [technicianFilter, setTechnicianFilter] = useState("ALL");
+  const [squadFilter, setSquadFilter] = useState("ALL");
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [qrModal, setQrModal] = useState<{ open: boolean; item: InventoryRow } | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: InventoryRow } | null>(
-    null
-  );
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: InventoryRow } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const columns = [
@@ -101,12 +109,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
             {row.original.imageUrl ? (
-              <Image
-                src={row.original.imageUrl}
-                alt={row.original.name}
-                fill
-                className="object-cover"
-              />
+              <Image src={row.original.imageUrl} alt={row.original.name} fill className="object-cover" />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground font-bold">
                 {row.original.name[0]}
@@ -130,30 +133,44 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
       (row) =>
         row.assignedTo
           ? `${row.assignedTo.firstName} ${row.assignedTo.lastName}`
+          : row.squad
+          ? row.squad.name
           : "Sin asignar",
       {
         id: "assignedTo",
         header: "Asignado a",
-        cell: ({ row }) =>
-          row.original.assignedTo ? (
-            <div className="flex items-center gap-2">
-              <AvatarPrimitive.Root className="h-6 w-6 rounded-full overflow-hidden bg-muted flex-shrink-0">
-                <AvatarPrimitive.Image
-                  src={row.original.assignedTo.avatarUrl ?? undefined}
-                  className="h-full w-full object-cover"
-                />
-                <AvatarPrimitive.Fallback className="h-full w-full flex items-center justify-center text-xs font-semibold text-muted-foreground bg-muted">
-                  {row.original.assignedTo.firstName[0]}
-                  {row.original.assignedTo.lastName[0]}
-                </AvatarPrimitive.Fallback>
-              </AvatarPrimitive.Root>
-              <span className="text-sm">
-                {row.original.assignedTo.firstName} {row.original.assignedTo.lastName}
-              </span>
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">Sin asignar</span>
-          ),
+        cell: ({ row }) => {
+          if (row.original.assignedTo) {
+            return (
+              <div className="flex items-center gap-2">
+                <AvatarPrimitive.Root className="h-6 w-6 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                  <AvatarPrimitive.Image
+                    src={row.original.assignedTo.avatarUrl ?? undefined}
+                    className="h-full w-full object-cover"
+                  />
+                  <AvatarPrimitive.Fallback className="h-full w-full flex items-center justify-center text-xs font-semibold text-muted-foreground bg-muted">
+                    {row.original.assignedTo.firstName[0]}
+                    {row.original.assignedTo.lastName[0]}
+                  </AvatarPrimitive.Fallback>
+                </AvatarPrimitive.Root>
+                <span className="text-sm">
+                  {row.original.assignedTo.firstName} {row.original.assignedTo.lastName}
+                </span>
+              </div>
+            );
+          }
+          if (row.original.squad) {
+            return (
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+                  <HardHat className="h-3.5 w-3.5 text-[#1E3A5F]" />
+                </div>
+                <span className="text-sm">{row.original.squad.name}</span>
+              </div>
+            );
+          }
+          return <span className="text-sm text-muted-foreground">Sin asignar</span>;
+        },
       }
     ),
     col.accessor("createdAt", {
@@ -177,13 +194,16 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
     }
     if (technicianFilter !== "ALL") {
       if (technicianFilter === "UNASSIGNED") {
-        result = result.filter((d) => !d.assignedToId);
+        result = result.filter((d) => !d.assignedToId && !d.squadId);
       } else {
         result = result.filter((d) => d.assignedToId === technicianFilter);
       }
     }
+    if (squadFilter !== "ALL") {
+      result = result.filter((d) => d.squadId === squadFilter);
+    }
     return result;
-  }, [data, statusFilter, technicianFilter]);
+  }, [data, statusFilter, technicianFilter, squadFilter]);
 
   const table = useReactTable({
     data: filteredData,
@@ -203,12 +223,10 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
     getFilteredRowModel: getFilteredRowModel(),
   });
 
-  // Reset visible count when filters change
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
-  }, [globalFilter, statusFilter, technicianFilter]);
+  }, [globalFilter, statusFilter, technicianFilter, squadFilter]);
 
-  // IntersectionObserver for infinite scroll
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -246,7 +264,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-wrap">
           <Input
             placeholder="Buscar por nombre o descripción..."
             value={globalFilter}
@@ -266,7 +284,10 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
             </SelectContent>
           </Select>
           {isAdmin && technicians.length > 0 && (
-            <Select onValueChange={setTechnicianFilter} value={technicianFilter}>
+            <Select
+              onValueChange={(v) => { setTechnicianFilter(v); if (v !== "ALL") setSquadFilter("ALL"); }}
+              value={technicianFilter}
+            >
               <SelectTrigger className="w-full sm:w-56">
                 <SelectValue />
               </SelectTrigger>
@@ -276,6 +297,24 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
                 {technicians.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.firstName} {t.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {isAdmin && squads.length > 0 && (
+            <Select
+              onValueChange={(v) => { setSquadFilter(v); if (v !== "ALL") setTechnicianFilter("ALL"); }}
+              value={squadFilter}
+            >
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todas las cuadrillas</SelectItem>
+                {squads.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -314,28 +353,20 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
                     </div>
                   </th>
                 ))}
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
-                  Acciones
-                </th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Acciones</th>
               </tr>
             ))}
           </thead>
           <tbody>
             {allRows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length + 1}
-                  className="px-4 py-8 text-center text-muted-foreground"
-                >
+                <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-muted-foreground">
                   No hay ítems que coincidan con la búsqueda.
                 </td>
               </tr>
             ) : (
               visibleRows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                >
+                <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -389,12 +420,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
               <div className="flex items-start gap-3">
                 <div className="h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
                   {row.original.imageUrl ? (
-                    <Image
-                      src={row.original.imageUrl}
-                      alt={row.original.name}
-                      fill
-                      className="object-cover"
-                    />
+                    <Image src={row.original.imageUrl} alt={row.original.name} fill className="object-cover" />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-lg font-bold text-muted-foreground">
                       {row.original.name[0]}
@@ -407,9 +433,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
                     <ItemStatusBadge status={row.original.status} />
                   </div>
                   {row.original.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {row.original.description}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{row.original.description}</p>
                   )}
                 </div>
               </div>
@@ -428,6 +452,12 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
                   <span className="text-xs text-muted-foreground">
                     {row.original.assignedTo.firstName} {row.original.assignedTo.lastName}
                   </span>
+                </div>
+              )}
+              {row.original.squad && !row.original.assignedTo && (
+                <div className="flex items-center gap-2">
+                  <HardHat className="h-4 w-4 text-[#1E3A5F]" />
+                  <span className="text-xs text-muted-foreground">{row.original.squad.name}</span>
                 </div>
               )}
 
@@ -488,25 +518,17 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
       )}
 
       {/* Delete confirm dialog */}
-      <Dialog
-        open={deleteDialog?.open ?? false}
-        onOpenChange={(o) => !o && setDeleteDialog(null)}
-      >
+      <Dialog open={deleteDialog?.open ?? false} onOpenChange={(o) => !o && setDeleteDialog(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar ítem</DialogTitle>
             <DialogDescription>
               ¿Seguro que quieres eliminar{" "}
-              <span className="font-semibold">{deleteDialog?.item.name}</span>? Esta acción no se
-              puede deshacer.
+              <span className="font-semibold">{deleteDialog?.item.name}</span>? Esta acción no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialog(null)}
-              disabled={deleting}
-            >
+            <Button variant="outline" onClick={() => setDeleteDialog(null)} disabled={deleting}>
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>

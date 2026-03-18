@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Package, Plane, Clock } from "lucide-react";
+import { Package, Plane, Clock, HardHat } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { StatsCard } from "./StatsCard";
@@ -24,6 +24,8 @@ interface VacationEntry {
 interface TechData {
   role: "TECHNICIAN";
   assignedItems: InventoryItem[];
+  squad: { id: string; name: string } | null;
+  squadItems: InventoryItem[];
   vacationStats: { total: number; used: number; remaining: number };
   upcomingVacations: VacationEntry[];
   pendingVacationsCount: number;
@@ -122,7 +124,7 @@ export function TechnicianDashboard() {
         {/* Assigned items */}
         <div className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold">Mis ítems</h2>
+            <h2 className="text-sm font-semibold">Mis ítems personales</h2>
             <Link
               href="/inventory"
               className="text-xs text-[#1E3A5F] hover:underline dark:text-blue-400"
@@ -164,6 +166,57 @@ export function TechnicianDashboard() {
             </ul>
           )}
         </div>
+
+        {/* Squad items */}
+        {data.squad && (
+          <div className="rounded-lg border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <HardHat className="h-4 w-4 text-[#1E3A5F]" />
+                <h2 className="text-sm font-semibold">Ítems — {data.squad.name}</h2>
+              </div>
+              <Link
+                href="/inventory"
+                className="text-xs text-[#1E3A5F] hover:underline dark:text-blue-400"
+              >
+                Ver todos
+              </Link>
+            </div>
+            {data.squadItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                Sin ítems asignados a la cuadrilla
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {data.squadItems.map((item) => {
+                  const st = STATUS_LABELS[item.status] ?? { label: item.status, color: "" };
+                  return (
+                    <li key={item.id}>
+                      <Link
+                        href={`/inventory/${item.id}`}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex-shrink-0 h-9 w-9 rounded bg-muted overflow-hidden flex items-center justify-center">
+                          {item.imageUrl ? (
+                            <Image src={item.imageUrl} alt={item.name} width={36} height={36} className="h-9 w-9 object-cover" />
+                          ) : (
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${st.color}`}>
+                            {st.label}
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Upcoming vacations */}
         <div className="rounded-lg border border-border bg-card p-5">

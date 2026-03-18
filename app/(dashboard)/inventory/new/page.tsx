@@ -9,14 +9,24 @@ export default async function NewInventoryItemPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const technicians =
-    session.user.role === "ADMIN"
-      ? await prisma.user.findMany({
+  const isAdmin = session.user.role === "ADMIN";
+
+  const [technicians, squads] = await Promise.all([
+    isAdmin
+      ? prisma.user.findMany({
           where: { isActive: true },
           select: { id: true, firstName: true, lastName: true },
           orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
         })
-      : [];
+      : Promise.resolve([]),
+    isAdmin
+      ? prisma.squad.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -26,9 +36,10 @@ export default async function NewInventoryItemPage() {
       </div>
       <InventoryForm
         mode="create"
-        isAdmin={session.user.role === "ADMIN"}
+        isAdmin={isAdmin}
         currentUserId={session.user.id}
         technicians={technicians}
+        squads={squads}
       />
     </div>
   );

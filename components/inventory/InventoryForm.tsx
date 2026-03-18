@@ -21,6 +21,11 @@ interface Technician {
   lastName: string;
 }
 
+interface Squad {
+  id: string;
+  name: string;
+}
+
 interface ExistingPhoto {
   id: string;
   url: string;
@@ -31,6 +36,7 @@ interface InventoryFormProps {
   isAdmin: boolean;
   currentUserId: string;
   technicians?: Technician[];
+  squads?: Squad[];
   initialData?: {
     id: string;
     name: string;
@@ -38,6 +44,7 @@ interface InventoryFormProps {
     imageUrl: string;
     status: string;
     assignedToId?: string | null;
+    squadId?: string | null;
     photos?: ExistingPhoto[];
   };
 }
@@ -133,6 +140,7 @@ export function InventoryForm({
   isAdmin,
   currentUserId,
   technicians = [],
+  squads = [],
   initialData,
 }: InventoryFormProps) {
   const router = useRouter();
@@ -141,9 +149,14 @@ export function InventoryForm({
   const [name, setName] = useState(initialData?.name ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [status, setStatus] = useState(initialData?.status ?? "AVAILABLE");
+  // Assignment type toggle for admin: "technician" or "squad"
+  const [assignmentType, setAssignmentType] = useState<"technician" | "squad">(
+    initialData?.squadId ? "squad" : "technician"
+  );
   const [assignedToId, setAssignedToId] = useState(
     initialData?.assignedToId ?? (isAdmin ? "none" : currentUserId)
   );
+  const [squadId, setSquadId] = useState(initialData?.squadId ?? "none");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(initialData?.imageUrl ?? "");
 
@@ -234,7 +247,13 @@ export function InventoryForm({
     formData.append("description", description.trim());
     formData.append("status", status);
     if (isAdmin) {
-      formData.append("assignedToId", assignedToId);
+      if (assignmentType === "squad") {
+        formData.append("squadId", squadId);
+        formData.append("assignedToId", "none");
+      } else {
+        formData.append("assignedToId", assignedToId);
+        formData.append("squadId", "none");
+      }
     }
     if (imageFile) {
       formData.append("image", imageFile);
@@ -429,23 +448,65 @@ export function InventoryForm({
         </Select>
       </div>
 
-      {/* Assigned technician (admin only) */}
+      {/* Assignment (admin only) */}
       {isAdmin && (
-        <div className="space-y-1.5">
-          <Label htmlFor="assignedToId">Asignar a técnico</Label>
-          <Select onValueChange={setAssignedToId} value={assignedToId}>
-            <SelectTrigger id="assignedToId">
-              <SelectValue placeholder="Sin asignar" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Sin asignar</SelectItem>
-              {technicians.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.firstName} {t.lastName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-2">
+          <Label>Asignación</Label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAssignmentType("technician")}
+              className={cn(
+                "flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                assignmentType === "technician"
+                  ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                  : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+              )}
+            >
+              Técnico individual
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssignmentType("squad")}
+              className={cn(
+                "flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                assignmentType === "squad"
+                  ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                  : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+              )}
+            >
+              Cuadrilla
+            </button>
+          </div>
+          {assignmentType === "technician" ? (
+            <Select onValueChange={setAssignedToId} value={assignedToId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sin asignar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
+                {technicians.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.firstName} {t.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select onValueChange={setSquadId} value={squadId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sin asignar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin asignar</SelectItem>
+                {squads.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 

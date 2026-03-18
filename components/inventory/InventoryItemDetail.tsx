@@ -35,10 +35,12 @@ interface InventoryItem {
   qrCode: string;
   status: "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED";
   assignedToId?: string | null;
+  squadId?: string | null;
   addedById: string;
   createdAt: string;
   updatedAt: string;
   assignedTo?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null;
+  squad?: { id: string; name: string } | null;
   addedBy: { id: string; firstName: string; lastName: string };
   photos?: ItemPhoto[];
   isElectronic: boolean;
@@ -56,7 +58,8 @@ interface TransferRecord {
   resolvedAt?: string | null;
   item: { id: string; name: string; imageUrl: string; status: string };
   requestedBy: { id: string; firstName: string; lastName: string };
-  toUser: { id: string; firstName: string; lastName: string };
+  toUser?: { id: string; firstName: string; lastName: string } | null;
+  toSquad?: { id: string; name: string } | null;
 }
 
 interface Technician {
@@ -65,11 +68,17 @@ interface Technician {
   lastName: string;
 }
 
+interface Squad {
+  id: string;
+  name: string;
+}
+
 interface InventoryItemDetailProps {
   item: InventoryItem;
   isAdmin: boolean;
   currentUserId: string;
   technicians: Technician[];
+  squads?: Squad[];
   transfers: TransferRecord[];
   canEdit: boolean;
   canTransfer: boolean;
@@ -118,6 +127,7 @@ export function InventoryItemDetail({
   isAdmin,
   currentUserId,
   technicians,
+  squads = [],
   transfers,
   canEdit,
   canTransfer,
@@ -267,6 +277,17 @@ export function InventoryItemDetail({
                     {item.assignedTo.firstName} {item.assignedTo.lastName}
                   </span>
                 </div>
+              ) : item.squad ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+                    <X className="h-4 w-4 text-[#1E3A5F] hidden" />
+                    <span className="text-xs font-bold text-[#1E3A5F]">C</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{item.squad.name}</p>
+                    <p className="text-xs text-muted-foreground">Cuadrilla</p>
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Sin asignar</p>
               )}
@@ -289,6 +310,7 @@ export function InventoryItemDetail({
                 isAdmin={isAdmin}
                 currentUserId={currentUserId}
                 technicians={technicians}
+                squads={squads}
                 initialData={{
                   id: item.id,
                   name: item.name,
@@ -296,6 +318,7 @@ export function InventoryItemDetail({
                   imageUrl: item.imageUrl,
                   status: item.status,
                   assignedToId: item.assignedToId,
+                  squadId: item.squadId,
                   photos,
                 }}
               />
@@ -376,6 +399,7 @@ export function InventoryItemDetail({
           <TransferRequestForm
             itemId={item.id}
             technicians={technicians}
+            squads={squads}
             onClose={() => setTransferOpen(false)}
           />
         </DialogContent>

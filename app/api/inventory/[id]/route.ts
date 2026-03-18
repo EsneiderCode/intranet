@@ -12,10 +12,12 @@ const itemSelect = {
   qrCode: true,
   status: true,
   assignedToId: true,
+  squadId: true,
   addedById: true,
   createdAt: true,
   updatedAt: true,
   assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+  squad: { select: { id: true, name: true } },
   addedBy: { select: { id: true, firstName: true, lastName: true } },
   photos: { select: { id: true, url: true, order: true }, orderBy: { order: "asc" as const } },
 };
@@ -41,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const item = await prisma.inventoryItem.findUnique({ where: { id } });
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Permission: technician can only edit items assigned to them
+  // Permission: technician can only edit items directly assigned to them
   if (
     session.user.role === "TECHNICIAN" &&
     item.assignedToId !== session.user.id
@@ -52,7 +54,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const contentType = req.headers.get("content-type") ?? "";
 
   const updateData: Record<string, unknown> = {};
-  let newImageUrl: string | undefined;
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await req.formData();
@@ -60,23 +61,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const description = formData.get("description") as string | null;
     const status = formData.get("status") as string | null;
     const assignedToId = formData.get("assignedToId") as string | null;
+    const squadId = formData.get("squadId") as string | null;
 
     if (name) updateData.name = name;
     if (description !== null) updateData.description = description;
     if (status) updateData.status = status;
-    if (session.user.role === "ADMIN" && assignedToId !== null) {
-      updateData.assignedToId = assignedToId === "none" ? null : assignedToId;
+
+    if (session.user.role === "ADMIN") {
+      if (squadId !== null && squadId !== "") {
+        if (squadId === "none") {
+          updateData.squadId = null;
+        } else {
+          updateData.squadId = squadId;
+          updateData.assignedToId = null;
+        }
+      } else if (assignedToId !== null) {
+        updateData.assignedToId = assignedToId === "none" ? null : assignedToId;
+        if (assignedToId !== "none") updateData.squadId = null;
+      }
     }
 
     const file = formData.get("image") as File | null;
     if (file && file.size > 0) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const result = await uploadAvatar(buffer, file.name);
-      newImageUrl = result.url;
-      updateData.imageUrl = newImageUrl;
+      updateData.imageUrl = result.url;
     }
 
-    // Collect secondary images
     const extraImages: File[] = [];
     let extraIdx = 0;
     while (true) {
@@ -109,10 +120,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (data.status !== undefined) updateData.status = data.status;
     if (session.user.role === "ADMIN" && data.assignedToId !== undefined) {
       updateData.assignedToId = data.assignedToId;
+      updateData.squadId = null;
     }
   }
 
-  // Detect what changed for history
+  // Detect changes for history
   const changedFields: string[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metadata: any = {};
@@ -132,10 +144,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     changedFields.push("imageUrl");
   }
 
-  const reassigned =
+  const reassignedToUser =
     session.user.role === "ADMIN" &&
     updateData.assignedToId !== undefined &&
     updateData.assignedToId !== item.assignedToId;
+
+  const reassignedToSquad =
+    session.user.role === "ADMIN" &&
+    updateData.squadId !== undefined &&
+    updateData.squadId !== item.squadId;
 
   const updated = await prisma.inventoryItem.update({
     where: { id },
@@ -143,7 +160,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     select: itemSelect,
   });
 
-  // Log history
   if (changedFields.length > 0) {
     const action = changedFields.includes("status") ? "STATUS_CHANGED" : "UPDATED";
     await prisma.inventoryHistory.create({
@@ -157,14 +173,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  if (reassigned) {
+  if (reassignedToUser || reassignedToSquad) {
+    let notes = "";
+    if (reassignedToSquad && updateData.squadId) {
+      const sq = await prisma.squad.findUnique({
+        where: { id: updateData.squadId as string },
+        select: { name: true },
+      });
+      notes = `Asignado a cuadrilla "${sq?.name ?? updateData.squadId}"`;
+    }
     await prisma.inventoryHistory.create({
       data: {
         itemId: id,
         action: "ASSIGNED",
-        fromUserId: item.assignedToId,
-        toUserId: updateData.assignedToId as string | null ?? undefined,
+        fromUserId: item.assignedToId ?? undefined,
+        toUserId: (updateData.assignedToId as string | null) ?? undefined,
         performedById: session.user.id,
+        notes: notes || undefined,
       },
     });
   }
@@ -173,7 +198,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/inventory/[id] — admin only
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -183,7 +208,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const item = await prisma.inventoryItem.findUnique({ where: { id } });
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Log deletion before cascade delete
   await prisma.inventoryHistory.create({
     data: {
       itemId: id,

@@ -12,9 +12,24 @@ export default async function InventoryPage() {
   const isTechnician = session.user.role === "TECHNICIAN";
   const isAdmin = session.user.role === "ADMIN";
 
-  const [items, technicians] = await Promise.all([
+  // For technicians, get their squad to also show squad items
+  const techUser = isTechnician
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { squadId: true },
+      })
+    : null;
+
+  const [items, technicians, squads] = await Promise.all([
     prisma.inventoryItem.findMany({
-      where: isTechnician ? { assignedToId: session.user.id } : undefined,
+      where: isTechnician
+        ? {
+            OR: [
+              { assignedToId: session.user.id },
+              ...(techUser?.squadId ? [{ squadId: techUser.squadId }] : []),
+            ],
+          }
+        : undefined,
       select: {
         id: true,
         name: true,
@@ -23,9 +38,13 @@ export default async function InventoryPage() {
         qrCode: true,
         status: true,
         assignedToId: true,
+        squadId: true,
         createdAt: true,
         assignedTo: {
           select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+        },
+        squad: {
+          select: { id: true, name: true },
         },
         addedBy: {
           select: { id: true, firstName: true, lastName: true },
@@ -38,6 +57,13 @@ export default async function InventoryPage() {
           where: { role: "TECHNICIAN", isActive: true },
           select: { id: true, firstName: true, lastName: true },
           orderBy: { firstName: "asc" },
+        })
+      : Promise.resolve([]),
+    isAdmin
+      ? prisma.squad.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
   ]);
@@ -60,6 +86,7 @@ export default async function InventoryPage() {
         isAdmin={isAdmin}
         currentUserId={session.user.id}
         technicians={technicians}
+        squads={squads}
       />
     </div>
   );

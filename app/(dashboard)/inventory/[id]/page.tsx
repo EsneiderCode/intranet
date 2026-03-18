@@ -25,10 +25,12 @@ export default async function InventoryItemPage({
       qrCode: true,
       status: true,
       assignedToId: true,
+      squadId: true,
       addedById: true,
       createdAt: true,
       updatedAt: true,
       assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+      squad: { select: { id: true, name: true } },
       addedBy: { select: { id: true, firstName: true, lastName: true } },
       photos: { select: { id: true, url: true, order: true }, orderBy: { order: "asc" } },
       isElectronic: true,
@@ -42,38 +44,47 @@ export default async function InventoryItemPage({
 
   if (!item) notFound();
 
-  // Technicians list for edit form and transfer
-  const technicians =
-    session.user.role === "ADMIN"
-      ? await prisma.user.findMany({
+  const isAdmin = session.user.role === "ADMIN";
+
+  const [technicians, squads, transfers] = await Promise.all([
+    isAdmin
+      ? prisma.user.findMany({
           where: { isActive: true },
           select: { id: true, firstName: true, lastName: true },
           orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
         })
-      : await prisma.user.findMany({
-          where: {
-            isActive: true,
-            id: { not: session.user.id },
-          },
+      : prisma.user.findMany({
+          where: { isActive: true, id: { not: session.user.id } },
           select: { id: true, firstName: true, lastName: true },
           orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-        });
-
-  // Pending transfers for this item
-  const transfers = await prisma.transferRequest.findMany({
-    where: { itemId: id },
-    select: {
-      id: true,
-      status: true,
-      adminNote: true,
-      createdAt: true,
-      resolvedAt: true,
-      item: { select: { id: true, name: true, imageUrl: true, status: true } },
-      requestedBy: { select: { id: true, firstName: true, lastName: true } },
-      toUser: { select: { id: true, firstName: true, lastName: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+        }),
+    isAdmin
+      ? prisma.squad.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : prisma.squad.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
+    prisma.transferRequest.findMany({
+      where: { itemId: id },
+      select: {
+        id: true,
+        status: true,
+        adminNote: true,
+        createdAt: true,
+        resolvedAt: true,
+        item: { select: { id: true, name: true, imageUrl: true, status: true } },
+        requestedBy: { select: { id: true, firstName: true, lastName: true } },
+        toUser: { select: { id: true, firstName: true, lastName: true } },
+        toSquad: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   const serializedItem = {
     ...item,
@@ -96,9 +107,10 @@ export default async function InventoryItemPage({
   return (
     <InventoryItemDetail
       item={serializedItem}
-      isAdmin={session.user.role === "ADMIN"}
+      isAdmin={isAdmin}
       currentUserId={session.user.id}
       technicians={technicians}
+      squads={squads}
       transfers={serializedTransfers}
       canEdit={canEdit}
       canTransfer={canTransfer}

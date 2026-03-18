@@ -16,16 +16,29 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status") ?? "";
   const assignedToId = searchParams.get("assignedToId") ?? "";
+  const squadId = searchParams.get("squadId") ?? "";
 
-  // Technicians only see items assigned to them
-  const ownerFilter =
-    session.user.role === "TECHNICIAN"
-      ? { assignedToId: session.user.id }
-      : assignedToId === "unassigned"
-      ? { assignedToId: null }
-      : assignedToId
-      ? { assignedToId }
-      : {};
+  let ownerFilter: Record<string, unknown> = {};
+
+  if (session.user.role === "TECHNICIAN") {
+    // Technician sees their personal items + their squad's items
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { squadId: true },
+    });
+    const conditions: Record<string, unknown>[] = [{ assignedToId: session.user.id }];
+    if (user?.squadId) conditions.push({ squadId: user.squadId });
+    ownerFilter = { OR: conditions };
+  } else {
+    // Admin filters
+    if (assignedToId === "unassigned") {
+      ownerFilter = { assignedToId: null, squadId: null };
+    } else if (assignedToId) {
+      ownerFilter = { assignedToId };
+    } else if (squadId) {
+      ownerFilter = { squadId };
+    }
+  }
 
   const items = await prisma.inventoryItem.findMany({
     where: {
@@ -50,11 +63,15 @@ export async function GET(req: NextRequest) {
       qrCode: true,
       status: true,
       assignedToId: true,
+      squadId: true,
       addedById: true,
       createdAt: true,
       updatedAt: true,
       assignedTo: {
         select: { id: true, firstName: true, lastName: true, avatarUrl: true },
+      },
+      squad: {
+        select: { id: true, name: true },
       },
       addedBy: {
         select: { id: true, firstName: true, lastName: true },
@@ -79,6 +96,7 @@ export async function POST(req: NextRequest) {
   let description = "";
   let status = "AVAILABLE";
   let assignedToId: string | null = null;
+  let squadId: string | null = null;
   let imageUrl = "";
   const extraImages: File[] = [];
   let isElectronic = false;
@@ -95,6 +113,8 @@ export async function POST(req: NextRequest) {
     status = (formData.get("status") as string) ?? "AVAILABLE";
     const rawAssigned = formData.get("assignedToId") as string | null;
     assignedToId = rawAssigned && rawAssigned !== "none" ? rawAssigned : null;
+    const rawSquad = formData.get("squadId") as string | null;
+    squadId = rawSquad && rawSquad !== "none" ? rawSquad : null;
 
     isElectronic = formData.get("isElectronic") === "true";
     const rawBrokenParts = formData.get("checklistBrokenParts") as string | null;
@@ -139,6 +159,7 @@ export async function POST(req: NextRequest) {
     description = body.description ?? "";
     status = body.status ?? "AVAILABLE";
     assignedToId = body.assignedToId ?? null;
+    squadId = body.squadId ?? null;
     isElectronic = body.isElectronic ?? false;
     checklistBrokenParts = body.checklistBrokenParts;
     checklistCase = body.checklistCase;
@@ -154,9 +175,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Technician auto-assigns to themselves
-    const effectiveAssignedToId =
-      session.user.role === "TECHNICIAN" ? session.user.id : assignedToId;
+    // Technician auto-assigns to themselves (ignore squad)
+    let effectiveAssignedToId: string | null = null;
+    let effectiveSquadId: string | null = null;
+
+    if (session.user.role === "TECHNICIAN") {
+      effectiveAssignedToId = session.user.id;
+    } else {
+      // Admin: squad takes priority if provided
+      if (squadId) {
+        effectiveSquadId = squadId;
+        effectiveAssignedToId = null;
+      } else {
+        effectiveAssignedToId = assignedToId;
+        effectiveSquadId = null;
+      }
+    }
 
     // Create the item first to get the ID for the QR
     const item = await prisma.inventoryItem.create({
@@ -166,6 +200,7 @@ export async function POST(req: NextRequest) {
         imageUrl,
         status: status as "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED",
         assignedToId: effectiveAssignedToId,
+        squadId: effectiveSquadId,
         addedById: session.user.id,
         isElectronic,
         checklistBrokenParts: checklistBrokenParts ?? null,
@@ -176,14 +211,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Generate QR code pointing to item detail URL
+    // Generate QR code
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const qrDataUrl = await QRCode.toDataURL(`${appUrl}/inventory/${item.id}`, {
       width: 300,
       margin: 2,
     });
 
-    // Update item with QR code
     const updatedItem = await prisma.inventoryItem.update({
       where: { id: item.id },
       data: { qrCode: qrDataUrl },
@@ -195,8 +229,10 @@ export async function POST(req: NextRequest) {
         qrCode: true,
         status: true,
         assignedToId: true,
+        squadId: true,
         createdAt: true,
         assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+        squad: { select: { id: true, name: true } },
         addedBy: { select: { id: true, firstName: true, lastName: true } },
       },
     });
@@ -213,6 +249,15 @@ export async function POST(req: NextRequest) {
       await prisma.inventoryItemPhoto.createMany({ data: photoData });
     }
 
+    // Resolve assignment label for history notes
+    let assignedLabel = "";
+    if (effectiveAssignedToId) {
+      assignedLabel = `técnico (${effectiveAssignedToId})`;
+    } else if (effectiveSquadId) {
+      const sq = await prisma.squad.findUnique({ where: { id: effectiveSquadId }, select: { name: true } });
+      assignedLabel = `cuadrilla "${sq?.name ?? effectiveSquadId}"`;
+    }
+
     // Log CREATED history
     await prisma.inventoryHistory.create({
       data: {
@@ -220,18 +265,19 @@ export async function POST(req: NextRequest) {
         action: "CREATED",
         toUserId: effectiveAssignedToId,
         performedById: session.user.id,
-        notes: effectiveAssignedToId ? `Ítem creado y asignado` : "Ítem creado",
+        notes: assignedLabel ? `Ítem creado y asignado a ${assignedLabel}` : "Ítem creado",
       },
     });
 
     // If assigned, also log ASSIGNED
-    if (effectiveAssignedToId) {
+    if (effectiveAssignedToId || effectiveSquadId) {
       await prisma.inventoryHistory.create({
         data: {
           itemId: item.id,
           action: "ASSIGNED",
           toUserId: effectiveAssignedToId,
           performedById: session.user.id,
+          notes: effectiveSquadId ? `Asignado a cuadrilla` : undefined,
         },
       });
     }

@@ -36,7 +36,7 @@ export default auth(async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const adminOnlyPaths = ["/users", "/reports", "/settings"];
+  const adminOnlyPaths = ["/users", "/reports", "/settings", "/squads"];
   const isAdminPath = adminOnlyPaths.some((p) => pathname.startsWith(p));
 
   if (isAdminPath && session.user?.role !== "ADMIN") {

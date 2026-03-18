@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createTransferRequestSchema } from "@/lib/validations/inventory";
 import { createNotification } from "@/lib/notifications";
 
 // GET /api/inventory/transfers — transfer history
-// Admin: all. Technician: transfers involving their items.
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -35,6 +33,7 @@ export async function GET(req: NextRequest) {
       item: { select: { id: true, name: true, imageUrl: true, status: true } },
       requestedBy: { select: { id: true, firstName: true, lastName: true } },
       toUser: { select: { id: true, firstName: true, lastName: true } },
+      toSquad: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -54,37 +53,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const result = createTransferRequestSchema.safeParse(body);
-  if (!result.success) {
-    return NextResponse.json({ error: result.error.flatten() }, { status: 400 });
-  }
+  const parsed = body as Record<string, unknown>;
+  const itemId = parsed.itemId as string | undefined;
+  const toUserId = parsed.toUserId as string | undefined | null;
+  const toSquadId = parsed.toSquadId as string | undefined | null;
+  const reason = (parsed.reason as string | undefined) ?? "";
+  const location = (parsed.location as string | undefined) ?? "";
 
-  const { itemId, toUserId, reason, location } = result.data;
+  if (!itemId) return NextResponse.json({ error: "itemId requerido" }, { status: 400 });
+  if (!toUserId && !toSquadId) {
+    return NextResponse.json({ error: "Indica técnico o cuadrilla destino" }, { status: 400 });
+  }
+  if (!reason.trim()) {
+    return NextResponse.json({ error: "El motivo es requerido" }, { status: 400 });
+  }
 
   try {
     const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
     if (!item) return NextResponse.json({ error: "Ítem no encontrado" }, { status: 404 });
 
+    // Permission: technician can only transfer their directly assigned items
     if (item.assignedToId !== session.user.id && session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Solo puedes transferir ítems que tienes asignados" }, { status: 403 });
     }
 
-    if (toUserId === session.user.id) {
+    if (toUserId && toUserId === session.user.id) {
       return NextResponse.json({ error: "No puedes transferirte un ítem a ti mismo" }, { status: 400 });
     }
 
     const now = new Date();
 
-    // Create transfer record (already resolved)
+    // Create transfer record
     const transfer = await prisma.transferRequest.create({
       data: {
         itemId,
         requestedById: session.user.id,
-        toUserId,
+        toUserId: toUserId ?? null,
+        toSquadId: toSquadId ?? null,
         status: "APPROVED",
         resolvedAt: now,
-        reason: reason ?? "",
-        location: location ?? "",
+        reason,
+        location,
       },
       select: {
         id: true,
@@ -94,17 +103,29 @@ export async function POST(req: NextRequest) {
         item: { select: { id: true, name: true } },
         requestedBy: { select: { id: true, firstName: true, lastName: true } },
         toUser: { select: { id: true, firstName: true, lastName: true } },
+        toSquad: { select: { id: true, name: true, members: { select: { id: true } } } },
       },
     });
 
     // Reassign item
-    await prisma.inventoryItem.update({
-      where: { id: itemId },
-      data: { assignedToId: toUserId },
-    });
+    if (toSquadId) {
+      await prisma.inventoryItem.update({
+        where: { id: itemId },
+        data: { squadId: toSquadId, assignedToId: null },
+      });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: itemId },
+        data: { assignedToId: toUserId!, squadId: null },
+      });
+    }
 
-    // Log in history
-    const noteParts = [`Transferido a ${transfer.toUser.firstName} ${transfer.toUser.lastName}`];
+    // Build history notes
+    const destLabel = transfer.toUser
+      ? `${transfer.toUser.firstName} ${transfer.toUser.lastName}`
+      : `cuadrilla "${transfer.toSquad?.name ?? toSquadId}"`;
+
+    const noteParts = [`Transferido a ${destLabel}`];
     if (location) noteParts.push(`Lugar: ${location}`);
     if (reason) noteParts.push(`Motivo: ${reason}`);
 
@@ -113,20 +134,32 @@ export async function POST(req: NextRequest) {
         itemId,
         action: "TRANSFERRED",
         fromUserId: session.user.id,
-        toUserId,
+        toUserId: toUserId ?? undefined,
         performedById: session.user.id,
         notes: noteParts.join(" · "),
       },
     });
 
-    // Notify recipient (non-blocking)
-    createNotification({
-      userId: toUserId,
-      type: "ITEM_ASSIGNED",
-      title: "Ítem transferido",
-      message: `El ítem "${transfer.item.name}" ha sido transferido y asignado a ti.`,
-      relatedId: itemId,
-    }).catch(() => {});
+    // Notify recipient(s) (non-blocking)
+    if (toUserId) {
+      createNotification({
+        userId: toUserId,
+        type: "ITEM_ASSIGNED",
+        title: "Ítem transferido",
+        message: `El ítem "${transfer.item.name}" ha sido transferido y asignado a ti.`,
+        relatedId: itemId,
+      }).catch(() => {});
+    } else if (transfer.toSquad?.members) {
+      for (const member of transfer.toSquad.members) {
+        createNotification({
+          userId: member.id,
+          type: "ITEM_ASSIGNED",
+          title: "Ítem transferido a tu cuadrilla",
+          message: `El ítem "${transfer.item.name}" ha sido asignado a la cuadrilla "${transfer.toSquad.name}".`,
+          relatedId: itemId,
+        }).catch(() => {});
+      }
+    }
 
     return NextResponse.json(transfer, { status: 201 });
   } catch (err) {

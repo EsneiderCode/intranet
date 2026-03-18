@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowRightLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Technician {
   id: string;
@@ -20,15 +21,23 @@ interface Technician {
   lastName: string;
 }
 
+interface Squad {
+  id: string;
+  name: string;
+}
+
 interface TransferRequestFormProps {
   itemId: string;
   technicians: Technician[];
+  squads?: Squad[];
   onClose?: () => void;
 }
 
-export function TransferRequestForm({ itemId, technicians, onClose }: TransferRequestFormProps) {
+export function TransferRequestForm({ itemId, technicians, squads = [], onClose }: TransferRequestFormProps) {
   const router = useRouter();
+  const [destType, setDestType] = useState<"technician" | "squad">("technician");
   const [toUserId, setToUserId] = useState("");
+  const [toSquadId, setToSquadId] = useState("");
   const [reason, setReason] = useState("");
   const [location, setLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -37,8 +46,12 @@ export function TransferRequestForm({ itemId, technicians, onClose }: TransferRe
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!toUserId) {
+    if (destType === "technician" && !toUserId) {
       setError("Selecciona un técnico destinatario");
+      return;
+    }
+    if (destType === "squad" && !toSquadId) {
+      setError("Selecciona una cuadrilla destinataria");
       return;
     }
     if (!reason.trim()) {
@@ -48,10 +61,15 @@ export function TransferRequestForm({ itemId, technicians, onClose }: TransferRe
     setSubmitting(true);
     setError("");
 
+    const body =
+      destType === "technician"
+        ? { itemId, toUserId, reason, location }
+        : { itemId, toSquadId, reason, location };
+
     const res = await fetch("/api/inventory/transfers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId, toUserId, reason, location }),
+      body: JSON.stringify(body),
     });
 
     const data = await res.json();
@@ -77,23 +95,76 @@ export function TransferRequestForm({ itemId, technicians, onClose }: TransferRe
     );
   }
 
+  const destSelected = destType === "technician" ? !!toUserId : !!toSquadId;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="toUserId">Transferir a técnico *</Label>
-        <Select onValueChange={setToUserId} value={toUserId}>
-          <SelectTrigger id="toUserId">
-            <SelectValue placeholder="Selecciona un técnico..." />
-          </SelectTrigger>
-          <SelectContent>
-            {technicians.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.firstName} {t.lastName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Destination type toggle */}
+      <div className="space-y-2">
+        <Label>Transferir a</Label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => { setDestType("technician"); setToSquadId(""); }}
+            className={cn(
+              "flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+              destType === "technician"
+                ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+            )}
+          >
+            Técnico
+          </button>
+          {squads.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setDestType("squad"); setToUserId(""); }}
+              className={cn(
+                "flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                destType === "squad"
+                  ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                  : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+              )}
+            >
+              Cuadrilla
+            </button>
+          )}
+        </div>
       </div>
+
+      {destType === "technician" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="toUserId">Técnico *</Label>
+          <Select onValueChange={setToUserId} value={toUserId}>
+            <SelectTrigger id="toUserId">
+              <SelectValue placeholder="Selecciona un técnico..." />
+            </SelectTrigger>
+            <SelectContent>
+              {technicians.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.firstName} {t.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor="toSquadId">Cuadrilla *</Label>
+          <Select onValueChange={setToSquadId} value={toSquadId}>
+            <SelectTrigger id="toSquadId">
+              <SelectValue placeholder="Selecciona una cuadrilla..." />
+            </SelectTrigger>
+            <SelectContent>
+              {squads.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="location">Lugar donde se realiza</Label>
@@ -112,16 +183,14 @@ export function TransferRequestForm({ itemId, technicians, onClose }: TransferRe
           id="reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Ej: El técnico necesita el equipo para el proyecto en curso..."
+          placeholder="Ej: El equipo necesita el herramienta para el proyecto en curso..."
           maxLength={500}
           rows={3}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
         />
       </div>
 
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex gap-2 justify-end">
         {onClose && (
@@ -132,7 +201,7 @@ export function TransferRequestForm({ itemId, technicians, onClose }: TransferRe
         <Button
           type="submit"
           className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white gap-2"
-          disabled={submitting || !toUserId || !reason.trim()}
+          disabled={submitting || !destSelected || !reason.trim()}
         >
           <ArrowRightLeft className="h-4 w-4" />
           {submitting ? "Transfiriendo..." : "Transferir ítem"}

@@ -84,6 +84,10 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // Squad membership (one squad per user)
+  squadId      String?
+  squad        Squad?   @relation("SquadMembers", fields: [squadId], references: [id])
+
   // Relations
   assignedItems        InventoryItem[]    @relation("AssignedTo")
   addedItems           InventoryItem[]    @relation("AddedBy")
@@ -98,6 +102,7 @@ model User {
   holidaysAssigned     UserHoliday[]      @relation("AssignedByUser")
   holidaysCreated      Holiday[]          @relation("CreatedBy")
   notifications        Notification[]     @relation("UserNotifications")
+  squadsCreated        Squad[]            @relation("SquadCreatedBy")
 
   @@map("users")
 }
@@ -110,6 +115,7 @@ model InventoryItem {
   qrCode       String     @default("")
   status       ItemStatus @default(AVAILABLE)
   assignedToId String?
+  squadId      String?
   addedById    String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -124,6 +130,7 @@ model InventoryItem {
 
   // Relations
   assignedTo       User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
+  squad            Squad?              @relation(fields: [squadId], references: [id])
   addedBy          User                @relation("AddedBy", fields: [addedById], references: [id])
   history          InventoryHistory[]
   transferRequests TransferRequest[]
@@ -168,7 +175,8 @@ model TransferRequest {
   id            String         @id @default(cuid())
   itemId        String
   requestedById String
-  toUserId      String
+  toUserId      String?
+  toSquadId     String?
   status        TransferStatus @default(PENDING)
   adminNote     String?
   reason        String         @default("")
@@ -179,9 +187,28 @@ model TransferRequest {
   // Relations
   item        InventoryItem @relation(fields: [itemId], references: [id])
   requestedBy User          @relation("RequestedBy", fields: [requestedById], references: [id])
-  toUser      User          @relation("TransferTo", fields: [toUserId], references: [id])
+  toUser      User?         @relation("TransferTo", fields: [toUserId], references: [id])
+  toSquad     Squad?        @relation("TransferToSquad", fields: [toSquadId], references: [id])
 
   @@map("transfer_requests")
+}
+
+model Squad {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String   @default("")
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdBy   User            @relation("SquadCreatedBy", fields: [createdById], references: [id])
+  members     User[]          @relation("SquadMembers")
+  items       InventoryItem[]
+  transfersTo TransferRequest[] @relation("TransferToSquad")
+
+  @@map("squads")
 }
 
 model VacationRequest {
