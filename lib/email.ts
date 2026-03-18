@@ -119,3 +119,46 @@ export async function sendVacationStatusEmail({
 }: Omit<SendNotificationEmailParams, "firstName">): Promise<void> {
   await sendEmail({ to, subject, html: htmlBody });
 }
+
+export async function sendNewVacationRequestEmail({
+  to,
+  technicianName,
+  startDate,
+  endDate,
+  workingDays,
+  vacationsUrl,
+}: {
+  to: string;
+  technicianName: string;
+  startDate: string;
+  endDate: string;
+  workingDays: number;
+  vacationsUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to,
+    subject: `${APP_NAME} — Nueva solicitud de vacaciones de ${technicianName}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1E3A5F; padding: 24px; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">${APP_NAME}</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
+          <p style="font-size: 16px; color: #111827;">Nueva solicitud de vacaciones pendiente de aprobación.</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+            <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Técnico</td><td style="padding: 8px 0; font-weight: bold; color: #111827;">${technicianName}</td></tr>
+            <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Desde</td><td style="padding: 8px 0; color: #111827;">${startDate}</td></tr>
+            <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Hasta</td><td style="padding: 8px 0; color: #111827;">${endDate}</td></tr>
+            <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Días laborables</td><td style="padding: 8px 0; color: #111827;">${workingDays}</td></tr>
+          </table>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${vacationsUrl}"
+               style="background: #1E3A5F; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px;">
+              Revisar solicitud
+            </a>
+          </div>
+        </div>
+      </div>
+    `,
+  });
+}

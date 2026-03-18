@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createVacationRequestSchema } from "@/lib/validations/vacation";
 import { calculateWorkingDays } from "@/lib/vacations";
+import { createNotification } from "@/lib/notifications";
+import { sendNewVacationRequestEmail } from "@/lib/email";
+import { APP_URL } from "@/lib/constants";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -174,15 +177,58 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const vacationRequest = await prisma.vacationRequest.create({
-      data: {
-        userId: session.user.id,
-        startDate: start,
-        endDate: end,
-        workingDaysRequested: workingDays,
-        status: "PENDING",
-        description: description ?? "",
-      },
+    const [vacationRequest, requester] = await Promise.all([
+      prisma.vacationRequest.create({
+        data: {
+          userId: session.user.id,
+          startDate: start,
+          endDate: end,
+          workingDaysRequested: workingDays,
+          status: "PENDING",
+          description: description ?? "",
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { firstName: true, lastName: true },
+      }),
+    ]);
+
+    // Notify bsandoval@umtelkomd.com (admin) about new vacation request (non-blocking)
+    const ADMIN_NOTIFY_EMAIL = "bsandoval@umtelkomd.com";
+    Promise.resolve().then(async () => {
+      try {
+        const adminUser = await prisma.user.findUnique({
+          where: { email: ADMIN_NOTIFY_EMAIL },
+          select: { id: true },
+        });
+        const techName = requester
+          ? `${requester.firstName} ${requester.lastName}`
+          : "Un técnico";
+        const startStr = start.toLocaleDateString("es-DE", { day: "2-digit", month: "long", year: "numeric" });
+        const endStr = end.toLocaleDateString("es-DE", { day: "2-digit", month: "long", year: "numeric" });
+
+        if (adminUser) {
+          await createNotification({
+            userId: adminUser.id,
+            type: "VACATION_REQUESTED",
+            title: "Nueva solicitud de vacaciones",
+            message: `${techName} ha solicitado vacaciones del ${startStr} al ${endStr} (${workingDays} días laborables).`,
+            relatedId: vacationRequest.id,
+          });
+        }
+
+        await sendNewVacationRequestEmail({
+          to: ADMIN_NOTIFY_EMAIL,
+          technicianName: techName,
+          startDate: startStr,
+          endDate: endStr,
+          workingDays,
+          vacationsUrl: `${APP_URL}/vacations`,
+        });
+      } catch {
+        // Non-blocking — do not fail the request
+      }
     });
 
     return NextResponse.json(

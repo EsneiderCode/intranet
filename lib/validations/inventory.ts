@@ -5,6 +5,10 @@ export const createInventoryItemSchema = z.object({
   description: z.string().max(500).optional().default(""),
   status: z.enum(["AVAILABLE", "IN_USE", "IN_REPAIR", "DECOMMISSIONED"]).default("AVAILABLE"),
   assignedToId: z.string().optional().nullable(),
+  isElectronic: z.boolean().default(false),
+  checklistBrokenParts: z.boolean({ required_error: "Indica si tiene partes rotas" }),
+  checklistCase: z.boolean({ required_error: "Indica si tiene estuche" }),
+  checklistCharger: z.boolean().optional(),
 });
 
 export const updateInventoryItemSchema = z.object({

@@ -5,6 +5,8 @@ import { ProfileForm } from "@/components/users/ProfileForm";
 import type { UpdateProfileInput } from "@/lib/validations/user";
 import { AvatarUpload } from "@/components/users/AvatarUpload";
 import { RoleBadge } from "@/components/users/UserStatusBadge";
+import { ChangeEmailForm } from "@/components/users/ChangeEmailForm";
+import { ChangePasswordForm } from "@/components/users/ChangePasswordForm";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +76,18 @@ export default async function ProfilePage() {
             state: (user.state as UpdateProfileInput["state"]) ?? "",
           }}
         />
+      </div>
+
+      {/* Change email */}
+      <div className="rounded-lg border bg-card p-6">
+        <h3 className="font-semibold text-base mb-4">Cambiar email</h3>
+        <ChangeEmailForm currentEmail={user.email} />
+      </div>
+
+      {/* Change password */}
+      <div className="rounded-lg border bg-card p-6">
+        <h3 className="font-semibold text-base mb-4">Cambiar contraseña</h3>
+        <ChangePasswordForm />
       </div>
     </div>
   );

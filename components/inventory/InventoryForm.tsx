@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ImagePlus, Plus, X } from "lucide-react";
+import { ImagePlus, Plus, X, CheckCircle2, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Technician {
   id: string;
@@ -48,6 +49,85 @@ const STATUSES = [
   { value: "DECOMMISSIONED", label: "Dado de baja" },
 ];
 
+function YesNoButton({
+  value,
+  selected,
+  onClick,
+  label,
+}: {
+  value: boolean;
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
+        selected
+          ? value
+            ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+            : "border-red-400 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400"
+          : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+      )}
+    >
+      {selected ? (
+        value ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />
+      ) : null}
+      {label}
+    </button>
+  );
+}
+
+function ChecklistPhotoUpload({
+  preview,
+  inputRef,
+  onFileChange,
+  onClear,
+}: {
+  preview: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onFileChange: (file: File) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div
+        className="relative w-24 h-24 rounded-lg border-2 border-dashed border-muted-foreground/30 overflow-hidden cursor-pointer hover:border-muted-foreground/60 transition-colors flex-shrink-0"
+        onClick={() => inputRef.current?.click()}
+      >
+        {preview ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+            <button
+              type="button"
+              className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </>
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+            <ImagePlus className="h-6 w-6 text-muted-foreground/50" />
+            <span className="text-xs text-muted-foreground/70 text-center px-1">Subir foto</span>
+          </div>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileChange(f); }}
+      />
+    </div>
+  );
+}
+
 export function InventoryForm({
   mode,
   isAdmin,
@@ -72,6 +152,20 @@ export function InventoryForm({
   const [existingPhotos, setExistingPhotos] = useState<ExistingPhoto[]>(initialData?.photos ?? []);
   const [newExtraFiles, setNewExtraFiles] = useState<File[]>([]);
   const [newExtraPreviews, setNewExtraPreviews] = useState<string[]>([]);
+
+  // Checklist state (only required at creation)
+  const [isElectronic, setIsElectronic] = useState(false);
+  const [checklistBrokenParts, setChecklistBrokenParts] = useState<boolean | null>(null);
+  const [checklistCase, setChecklistCase] = useState<boolean | null>(null);
+  const [checklistCharger, setChecklistCharger] = useState<boolean | null>(null);
+
+  // Checklist photo files
+  const casePhotoRef = useRef<HTMLInputElement>(null);
+  const chargerPhotoRef = useRef<HTMLInputElement>(null);
+  const [casePhotoFile, setCasePhotoFile] = useState<File | null>(null);
+  const [casePhotoPreview, setCasePhotoPreview] = useState("");
+  const [chargerPhotoFile, setChargerPhotoFile] = useState<File | null>(null);
+  const [chargerPhotoPreview, setChargerPhotoPreview] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -116,6 +210,18 @@ export function InventoryForm({
 
     const fieldErrors: Record<string, string> = {};
     if (!name.trim()) fieldErrors.name = "El nombre es requerido";
+
+    // Checklist validation (only required at creation)
+    if (mode === "create") {
+      if (checklistBrokenParts === null) fieldErrors.checklistBrokenParts = "Indica si tiene partes rotas";
+      if (checklistCase === null) fieldErrors.checklistCase = "Indica si tiene estuche";
+      if (checklistCase === true && !casePhotoFile) fieldErrors.checklistCasePhoto = "Añade una foto del estuche";
+      if (isElectronic) {
+        if (checklistCharger === null) fieldErrors.checklistCharger = "Indica si tiene cargador";
+        if (checklistCharger === true && !chargerPhotoFile) fieldErrors.checklistChargerPhoto = "Añade una foto del cargador";
+      }
+    }
+
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors);
       return;
@@ -133,6 +239,17 @@ export function InventoryForm({
     if (imageFile) {
       formData.append("image", imageFile);
     }
+
+    // Append checklist fields at creation
+    if (mode === "create") {
+      formData.append("isElectronic", String(isElectronic));
+      if (checklistBrokenParts !== null) formData.append("checklistBrokenParts", String(checklistBrokenParts));
+      if (checklistCase !== null) formData.append("checklistCase", String(checklistCase));
+      if (isElectronic && checklistCharger !== null) formData.append("checklistCharger", String(checklistCharger));
+      if (casePhotoFile) formData.append("checklistCasePhoto", casePhotoFile);
+      if (chargerPhotoFile) formData.append("checklistChargerPhoto", chargerPhotoFile);
+    }
+
     newExtraFiles.forEach((file, i) => {
       formData.append(`extraImage_${i}`, file);
     });
@@ -329,6 +446,80 @@ export function InventoryForm({
               ))}
             </SelectContent>
           </Select>
+        </div>
+      )}
+
+      {/* Checklist — only shown at creation */}
+      {mode === "create" && (
+        <div className="space-y-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 p-4">
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+            Checklist de estado del ítem (obligatorio)
+          </p>
+
+          {/* Is electronic */}
+          <div className="space-y-1.5">
+            <Label>¿Es un equipo eléctrico?</Label>
+            <div className="flex gap-2">
+              <YesNoButton value={isElectronic} selected={true} onClick={() => setIsElectronic(true)} label="Sí" />
+              <YesNoButton value={false} selected={!isElectronic} onClick={() => { setIsElectronic(false); setChecklistCharger(null); setChargerPhotoFile(null); setChargerPhotoPreview(""); }} label="No" />
+            </div>
+          </div>
+
+          {/* Broken parts */}
+          <div className="space-y-1.5">
+            <Label>¿Tiene partes rotas o dañadas? *</Label>
+            <div className="flex gap-2">
+              <YesNoButton value={true} selected={checklistBrokenParts === true} onClick={() => setChecklistBrokenParts(true)} label="Sí" />
+              <YesNoButton value={false} selected={checklistBrokenParts === false} onClick={() => setChecklistBrokenParts(false)} label="No" />
+            </div>
+            {errors.checklistBrokenParts && <p className="text-xs text-destructive">{errors.checklistBrokenParts}</p>}
+          </div>
+
+          {/* Case */}
+          <div className="space-y-1.5">
+            <Label>¿Tiene estuche? *</Label>
+            <div className="flex gap-2">
+              <YesNoButton value={true} selected={checklistCase === true} onClick={() => setChecklistCase(true)} label="Sí" />
+              <YesNoButton value={false} selected={checklistCase === false} onClick={() => { setChecklistCase(false); setCasePhotoFile(null); setCasePhotoPreview(""); }} label="No" />
+            </div>
+            {errors.checklistCase && <p className="text-xs text-destructive">{errors.checklistCase}</p>}
+            {checklistCase === true && (
+              <div className="mt-2 space-y-1">
+                <Label className="text-xs">Foto del estuche *</Label>
+                <ChecklistPhotoUpload
+                  preview={casePhotoPreview}
+                  inputRef={casePhotoRef}
+                  onFileChange={(file) => { setCasePhotoFile(file); setCasePhotoPreview(URL.createObjectURL(file)); }}
+                  onClear={() => { setCasePhotoFile(null); setCasePhotoPreview(""); if (casePhotoRef.current) casePhotoRef.current.value = ""; }}
+                />
+                {errors.checklistCasePhoto && <p className="text-xs text-destructive">{errors.checklistCasePhoto}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Charger (only if electric) */}
+          {isElectronic && (
+            <div className="space-y-1.5">
+              <Label>¿Tiene cargador? *</Label>
+              <div className="flex gap-2">
+                <YesNoButton value={true} selected={checklistCharger === true} onClick={() => setChecklistCharger(true)} label="Sí" />
+                <YesNoButton value={false} selected={checklistCharger === false} onClick={() => { setChecklistCharger(false); setChargerPhotoFile(null); setChargerPhotoPreview(""); }} label="No" />
+              </div>
+              {errors.checklistCharger && <p className="text-xs text-destructive">{errors.checklistCharger}</p>}
+              {checklistCharger === true && (
+                <div className="mt-2 space-y-1">
+                  <Label className="text-xs">Foto del cargador *</Label>
+                  <ChecklistPhotoUpload
+                    preview={chargerPhotoPreview}
+                    inputRef={chargerPhotoRef}
+                    onFileChange={(file) => { setChargerPhotoFile(file); setChargerPhotoPreview(URL.createObjectURL(file)); }}
+                    onClear={() => { setChargerPhotoFile(null); setChargerPhotoPreview(""); if (chargerPhotoRef.current) chargerPhotoRef.current.value = ""; }}
+                  />
+                  {errors.checklistChargerPhoto && <p className="text-xs text-destructive">{errors.checklistChargerPhoto}</p>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

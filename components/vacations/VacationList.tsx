@@ -40,6 +40,7 @@ interface VacationListProps {
   requests: VacationRequestItem[];
   isAdmin: boolean;
   showUserName?: boolean;
+  onStatusChange?: (id: string, updates: Partial<VacationRequestItem>) => void;
 }
 
 function formatDateRange(start: string, end: string): string {
@@ -55,7 +56,7 @@ function formatDateRange(start: string, end: string): string {
 type RejectDialogState = { open: boolean; requestId: string; reason: string };
 type ApproveDialogState = { open: boolean; requestId: string; userName: string; dates: string };
 
-export function VacationList({ requests, isAdmin, showUserName = false }: VacationListProps) {
+export function VacationList({ requests, isAdmin, showUserName = false, onStatusChange }: VacationListProps) {
   const router = useRouter();
   const [rejectDialog, setRejectDialog] = useState<RejectDialogState>({
     open: false,
@@ -95,6 +96,7 @@ export function VacationList({ requests, isAdmin, showUserName = false }: Vacati
         return;
       }
       setApproveDialog({ open: false, requestId: "", userName: "", dates: "" });
+      onStatusChange?.(approveDialog.requestId, { status: "APPROVED" });
       router.refresh();
     } catch {
       setActionError("Error de red. Inténtalo de nuevo.");
@@ -119,6 +121,7 @@ export function VacationList({ requests, isAdmin, showUserName = false }: Vacati
         return;
       }
       setRejectDialog({ open: false, requestId: "", reason: "" });
+      onStatusChange?.(rejectDialog.requestId, { status: "REJECTED", adminNote: rejectDialog.reason });
       router.refresh();
     } catch {
       setActionError("Error de red. Inténtalo de nuevo.");

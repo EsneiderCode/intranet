@@ -81,6 +81,12 @@ export async function POST(req: NextRequest) {
   let assignedToId: string | null = null;
   let imageUrl = "";
   const extraImages: File[] = [];
+  let isElectronic = false;
+  let checklistBrokenParts: boolean | undefined;
+  let checklistCase: boolean | undefined;
+  let checklistCharger: boolean | undefined;
+  let checklistCasePhotoUrl = "";
+  let checklistChargerPhotoUrl = "";
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await req.formData();
@@ -90,11 +96,33 @@ export async function POST(req: NextRequest) {
     const rawAssigned = formData.get("assignedToId") as string | null;
     assignedToId = rawAssigned && rawAssigned !== "none" ? rawAssigned : null;
 
+    isElectronic = formData.get("isElectronic") === "true";
+    const rawBrokenParts = formData.get("checklistBrokenParts") as string | null;
+    if (rawBrokenParts !== null) checklistBrokenParts = rawBrokenParts === "true";
+    const rawCase = formData.get("checklistCase") as string | null;
+    if (rawCase !== null) checklistCase = rawCase === "true";
+    const rawCharger = formData.get("checklistCharger") as string | null;
+    if (rawCharger !== null) checklistCharger = rawCharger === "true";
+
     const file = formData.get("image") as File | null;
     if (file && file.size > 0) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const result = await uploadAvatar(buffer, file.name);
       imageUrl = result.url;
+    }
+
+    // Checklist photos
+    const casePhotoFile = formData.get("checklistCasePhoto") as File | null;
+    if (casePhotoFile && casePhotoFile.size > 0) {
+      const buffer = Buffer.from(await casePhotoFile.arrayBuffer());
+      const result = await uploadAvatar(buffer, casePhotoFile.name);
+      checklistCasePhotoUrl = result.url;
+    }
+    const chargerPhotoFile = formData.get("checklistChargerPhoto") as File | null;
+    if (chargerPhotoFile && chargerPhotoFile.size > 0) {
+      const buffer = Buffer.from(await chargerPhotoFile.arrayBuffer());
+      const result = await uploadAvatar(buffer, chargerPhotoFile.name);
+      checklistChargerPhotoUrl = result.url;
     }
 
     // Collect secondary images
@@ -111,9 +139,16 @@ export async function POST(req: NextRequest) {
     description = body.description ?? "";
     status = body.status ?? "AVAILABLE";
     assignedToId = body.assignedToId ?? null;
+    isElectronic = body.isElectronic ?? false;
+    checklistBrokenParts = body.checklistBrokenParts;
+    checklistCase = body.checklistCase;
+    checklistCharger = body.checklistCharger;
   }
 
-  const result = createInventoryItemSchema.safeParse({ name, description, status, assignedToId });
+  const result = createInventoryItemSchema.safeParse({
+    name, description, status, assignedToId,
+    isElectronic, checklistBrokenParts, checklistCase, checklistCharger,
+  });
   if (!result.success) {
     return NextResponse.json({ error: result.error.flatten() }, { status: 400 });
   }
@@ -132,6 +167,12 @@ export async function POST(req: NextRequest) {
         status: status as "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED",
         assignedToId: effectiveAssignedToId,
         addedById: session.user.id,
+        isElectronic,
+        checklistBrokenParts: checklistBrokenParts ?? null,
+        checklistCase: checklistCase ?? null,
+        checklistCasePhotoUrl,
+        checklistCharger: checklistCharger ?? null,
+        checklistChargerPhotoUrl,
       },
     });
 

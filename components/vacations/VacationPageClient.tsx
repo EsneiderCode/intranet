@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Sun, Clock, CalendarDays, TrendingDown, User, History } from "lucide-react";
 import {
   Select,
@@ -160,6 +160,15 @@ export function VacationPageClient({
   // Technician view state
   const [showRequestForm, setShowRequestForm] = useState(false);
 
+  // Admin: local requests state for optimistic updates
+  const [adminRequests, setAdminRequests] = useState<VacationRequestItem[]>(adminAllRequests);
+
+  function handleRequestStatusChange(id: string, updates: Partial<VacationRequestItem>) {
+    setAdminRequests((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
+    );
+  }
+
   // Admin view state
   const [activeTab, setActiveTab] = useState<AdminTab>("requests");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -195,6 +204,20 @@ export function VacationPageClient({
     if (selectedUserId) fetchUserData(selectedUserId);
     else setSelectedUserData(null);
   }, [selectedUserId, fetchUserData]);
+
+  // These must be declared before the early return for TECHNICIAN (Rules of Hooks)
+  const filteredAdminRequests = useMemo(
+    () =>
+      adminRequestFilter === "ALL"
+        ? adminRequests
+        : adminRequests.filter((r) => r.status === adminRequestFilter),
+    [adminRequests, adminRequestFilter]
+  );
+
+  const pendingCount = useMemo(
+    () => adminRequests.filter((r) => r.status === "PENDING").length,
+    [adminRequests]
+  );
 
   // ── TECHNICIAN VIEW ──────────────────────────────────────────────────────────
   if (role === "TECHNICIAN" && initialUser && initialStats) {
@@ -298,13 +321,6 @@ export function VacationPageClient({
   }
 
   // ── ADMIN VIEW ───────────────────────────────────────────────────────────────
-  const filteredAdminRequests =
-    adminRequestFilter === "ALL"
-      ? adminAllRequests
-      : adminAllRequests.filter((r) => r.status === adminRequestFilter);
-
-  const pendingCount = adminAllRequests.filter((r) => r.status === "PENDING").length;
-
   const viewUser = selectedUserData?.user ?? null;
   const viewRequests = selectedUserData?.requests ?? [];
   const viewCurrentYearStats = selectedUserData?.currentYearStats ?? null;
@@ -372,6 +388,7 @@ export function VacationPageClient({
             requests={filteredAdminRequests}
             isAdmin
             showUserName
+            onStatusChange={handleRequestStatusChange}
           />
         </div>
       )}
@@ -436,7 +453,7 @@ export function VacationPageClient({
                   <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-3">
                     Solicitudes
                   </h4>
-                  <VacationList requests={viewRequests} isAdmin showUserName={false} />
+                  <VacationList requests={viewRequests} isAdmin showUserName={false} onStatusChange={handleRequestStatusChange} />
                 </div>
               </div>
             </div>

@@ -53,6 +53,7 @@ enum VacationStatus {
 enum NotificationType {
   VACATION_APPROVED
   VACATION_REJECTED
+  VACATION_REQUESTED
   ITEM_ASSIGNED
   TRANSFER_APPROVED
   TRANSFER_REJECTED
@@ -112,6 +113,14 @@ model InventoryItem {
   addedById    String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  // Checklist fields (required at creation)
+  isElectronic             Boolean  @default(false)
+  checklistBrokenParts     Boolean?
+  checklistCase            Boolean?
+  checklistCasePhotoUrl    String   @default("")
+  checklistCharger         Boolean?
+  checklistChargerPhotoUrl String   @default("")
 
   // Relations
   assignedTo       User?               @relation("AssignedTo", fields: [assignedToId], references: [id])

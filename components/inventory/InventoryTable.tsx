@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,7 +9,6 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
@@ -82,10 +81,13 @@ const STATUS_OPTIONS = [
 
 export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] }: InventoryTableProps) {
   const router = useRouter();
+  const ITEMS_PER_PAGE = 20;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [technicianFilter, setTechnicianFilter] = useState("ALL");
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [qrModal, setQrModal] = useState<{ open: boolean; item: InventoryRow } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: InventoryRow } | null>(
     null
@@ -199,9 +201,32 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 10 } },
   });
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [globalFilter, statusFilter, technicianFilter]);
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + ITEMS_PER_PAGE);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  const allRows = table.getRowModel().rows;
+  const visibleRows = allRows.slice(0, visibleCount);
+  const hasMore = visibleCount < allRows.length;
 
   async function handleDelete() {
     if (!deleteDialog) return;
@@ -296,7 +321,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.length === 0 ? (
+            {allRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length + 1}
@@ -306,7 +331,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
+              visibleRows.map((row) => (
                 <tr
                   key={row.id}
                   className="border-b last:border-0 hover:bg-muted/30 transition-colors"
@@ -356,10 +381,10 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
-        {table.getRowModel().rows.length === 0 ? (
+        {allRows.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">No hay resultados.</p>
         ) : (
-          table.getRowModel().rows.map((row) => (
+          visibleRows.map((row) => (
             <div key={row.id} className="rounded-lg border bg-card p-4 space-y-3">
               <div className="flex items-start gap-3">
                 <div className="h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
@@ -441,33 +466,16 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [] 
         )}
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
+      {/* Infinite scroll sentinel + count */}
+      <div className="flex items-center justify-between py-2">
         <p className="text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} ítem(s) encontrado(s)
+          {visibleRows.length} de {allRows.length} ítem(s)
         </p>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Anterior
-          </Button>
-          <span className="text-sm flex items-center px-2">
-            Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Siguiente
-          </Button>
-        </div>
+        {hasMore && (
+          <p className="text-xs text-muted-foreground">Desplázate para cargar más</p>
+        )}
       </div>
+      <div ref={sentinelRef} className="h-4" />
 
       {/* QR Modal */}
       {qrModal && (

@@ -8,7 +8,6 @@ import {
   CalendarDays,
   Users,
   BarChart3,
-  Settings,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
