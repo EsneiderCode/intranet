@@ -218,24 +218,6 @@ export function UserForm({ mode, userId, defaultValues, onSuccess }: UserFormPro
           <p className="text-xs text-muted-foreground">Talla europea de calzado.</p>
         </div>
 
-        {/* Vacation days per year */}
-        <div className="space-y-1.5">
-          <Label htmlFor="vacationDaysPerYear">Días de vacaciones al año</Label>
-          <Input
-            id="vacationDaysPerYear"
-            type="number"
-            min={0}
-            max={365}
-            {...register("vacationDaysPerYear", { valueAsNumber: true })}
-          />
-          {errors.vacationDaysPerYear && (
-            <p className="text-xs text-destructive">{errors.vacationDaysPerYear.message}</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Asignación anual de días laborables. Por defecto: 24.
-          </p>
-        </div>
-
         {/* Vacation carry-over (edit only) */}
         {mode === "edit" && (
           <div className="space-y-1.5">
