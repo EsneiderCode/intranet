@@ -81,14 +81,7 @@ export function Navbar({ user }: NavbarProps) {
                 Mi perfil
               </Link>
             </DropdownMenuItem>
-            {user.role === "ADMIN" && (
-              <DropdownMenuItem asChild>
-                <Link href={NAV_LINKS.settings} className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Configuración
-                </Link>
-              </DropdownMenuItem>
-            )}
+            {/* Settings hidden — not yet in use */}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive cursor-pointer"

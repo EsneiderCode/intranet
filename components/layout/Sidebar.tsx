@@ -28,7 +28,7 @@ const navItems = [
   { href: NAV_LINKS.vacations, label: "Vacaciones", icon: CalendarDays, roles: ["ADMIN", "TECHNICIAN"] },
   { href: NAV_LINKS.users, label: "Usuarios", icon: Users, roles: ["ADMIN"] },
   { href: NAV_LINKS.reports, label: "Reportes", icon: BarChart3, roles: ["ADMIN"] },
-  { href: NAV_LINKS.settings, label: "Configuración", icon: Settings, roles: ["ADMIN"] },
+  // { href: NAV_LINKS.settings, label: "Configuración", icon: Settings, roles: ["ADMIN"] },
 ];
 
 export function Sidebar({ role }: SidebarProps) {
