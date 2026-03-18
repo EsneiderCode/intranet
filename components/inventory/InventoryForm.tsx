@@ -460,7 +460,7 @@ export function InventoryForm({
           <div className="space-y-1.5">
             <Label>¿Es un equipo eléctrico?</Label>
             <div className="flex gap-2">
-              <YesNoButton value={isElectronic} selected={true} onClick={() => setIsElectronic(true)} label="Sí" />
+              <YesNoButton value={true} selected={isElectronic} onClick={() => setIsElectronic(true)} label="Sí" />
               <YesNoButton value={false} selected={!isElectronic} onClick={() => { setIsElectronic(false); setChecklistCharger(null); setChargerPhotoFile(null); setChargerPhotoPreview(""); }} label="No" />
             </div>
           </div>
