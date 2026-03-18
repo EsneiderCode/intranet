@@ -36,7 +36,8 @@ export default async function EditUserPage({
       avatarUrl: true,
       state: true,
       isActive: true,
-      vacationDaysTotal: true,
+      vacationDaysPerYear: true,
+      vacationDaysCarryOver: true,
     },
   });
 
@@ -92,7 +93,8 @@ export default async function EditUserPage({
             shoeSize: user.shoeSize ?? "",
             role: user.role,
             state: (user.state as CreateUserInput["state"]) ?? "",
-            vacationDaysTotal: user.vacationDaysTotal,
+            vacationDaysPerYear: user.vacationDaysPerYear,
+            vacationDaysCarryOver: user.vacationDaysCarryOver,
           }}
         />
       </div>

@@ -30,7 +30,8 @@ export async function GET(
       avatarUrl: true,
       state: true,
       isActive: true,
-      vacationDaysTotal: true,
+      vacationDaysPerYear: true,
+      vacationDaysCarryOver: true,
       mustChangePassword: true,
       createdAt: true,
     },
@@ -72,8 +73,11 @@ export async function PATCH(
       ...(data.shoeSize !== undefined && { shoeSize: data.shoeSize }),
       ...(data.role !== undefined && { role: data.role }),
       ...(data.state !== undefined && { state: data.state }),
-      ...(data.vacationDaysTotal !== undefined && {
-        vacationDaysTotal: data.vacationDaysTotal,
+      ...(data.vacationDaysPerYear !== undefined && {
+        vacationDaysPerYear: data.vacationDaysPerYear,
+      }),
+      ...(data.vacationDaysCarryOver !== undefined && {
+        vacationDaysCarryOver: data.vacationDaysCarryOver,
       }),
     },
     select: {

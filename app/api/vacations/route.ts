@@ -16,6 +16,9 @@ export async function GET(req: NextRequest) {
   }
 
   const targetUserId = userId ?? session.user.id;
+  const currentYear = new Date().getFullYear();
+  const yearStart = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+  const yearEnd = new Date(`${currentYear}-12-31T23:59:59.999Z`);
 
   try {
     const [requests, user] = await Promise.all([
@@ -33,13 +36,19 @@ export async function GET(req: NextRequest) {
           id: true,
           firstName: true,
           lastName: true,
-          vacationDaysTotal: true,
+          vacationDaysPerYear: true,
+          vacationDaysCarryOver: true,
           holidays: {
             include: { holiday: true },
           },
         },
       }),
     ]);
+
+    // Stats are calculated only from current-year requests
+    const currentYearRequests = requests.filter(
+      (r) => r.startDate >= yearStart && r.startDate <= yearEnd
+    );
 
     return NextResponse.json({
       requests: requests.map((r) => ({
@@ -54,7 +63,8 @@ export async function GET(req: NextRequest) {
             id: user.id,
             firstName: user.firstName,
             lastName: user.lastName,
-            vacationDaysTotal: user.vacationDaysTotal,
+            vacationDaysPerYear: user.vacationDaysPerYear,
+            vacationDaysCarryOver: user.vacationDaysCarryOver,
             holidays: user.holidays.map((uh) => ({
               id: uh.holiday.id,
               name: uh.holiday.name,
@@ -63,6 +73,14 @@ export async function GET(req: NextRequest) {
             })),
           }
         : null,
+      currentYearStats: {
+        usedThisYear: currentYearRequests
+          .filter((r) => r.status === "APPROVED")
+          .reduce((s, r) => s + r.workingDaysRequested, 0),
+        pendingThisYear: currentYearRequests
+          .filter((r) => r.status === "PENDING")
+          .reduce((s, r) => s + r.workingDaysRequested, 0),
+      },
     });
   } catch {
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
@@ -88,6 +106,9 @@ export async function POST(req: NextRequest) {
   const { startDate, endDate, description } = parsed.data;
   const start = new Date(startDate);
   const end = new Date(endDate);
+  const requestYear = start.getUTCFullYear();
+  const yearStart = new Date(`${requestYear}-01-01T00:00:00.000Z`);
+  const yearEnd = new Date(`${requestYear}-12-31T23:59:59.999Z`);
 
   try {
     // Fetch user's assigned holidays
@@ -106,24 +127,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check remaining days (only approved count against the total)
-    const [approvedRequests, user] = await Promise.all([
-      prisma.vacationRequest.findMany({
-        where: { userId: session.user.id, status: "APPROVED" },
-        select: { workingDaysRequested: true },
+    // Check remaining days using current-year approved + carry-over
+    const [approvedThisYear, user] = await Promise.all([
+      prisma.vacationRequest.aggregate({
+        where: {
+          userId: session.user.id,
+          status: "APPROVED",
+          startDate: { gte: yearStart, lte: yearEnd },
+        },
+        _sum: { workingDaysRequested: true },
       }),
       prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { vacationDaysTotal: true },
+        select: { vacationDaysPerYear: true, vacationDaysCarryOver: true },
       }),
     ]);
-    const usedDays = approvedRequests.reduce((s, r) => s + r.workingDaysRequested, 0);
-    const remaining = (user?.vacationDaysTotal ?? 24) - usedDays;
 
-    if (workingDays > remaining) {
+    const usedThisYear = approvedThisYear._sum.workingDaysRequested ?? 0;
+    const perYear = user?.vacationDaysPerYear ?? 24;
+    const carryOver = user?.vacationDaysCarryOver ?? 0;
+    const remainingThisYear = Math.max(0, perYear - usedThisYear);
+    const totalAvailable = remainingThisYear + carryOver;
+
+    if (workingDays > totalAvailable) {
       return NextResponse.json(
         {
-          error: `No tienes suficientes días disponibles. Disponibles: ${remaining}, Solicitados: ${workingDays}`,
+          error: `No tienes suficientes días disponibles. Disponibles: ${totalAvailable} (${remainingThisYear} de ${requestYear} + ${carryOver} acumulados), Solicitados: ${workingDays}`,
         },
         { status: 400 }
       );

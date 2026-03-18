@@ -27,7 +27,7 @@ export default async function ProfilePage() {
       state: true,
       avatarUrl: true,
       role: true,
-      vacationDaysTotal: true,
+      vacationDaysPerYear: true,
     },
   });
 
@@ -54,7 +54,7 @@ export default async function ProfilePage() {
           <div className="flex items-center gap-2 mt-2">
             <RoleBadge role={user.role} />
             <span className="text-sm text-muted-foreground">
-              {user.vacationDaysTotal} días de vacaciones anuales
+              {user.vacationDaysPerYear} días de vacaciones anuales
             </span>
           </div>
         </div>

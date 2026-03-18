@@ -20,7 +20,7 @@ export default async function UsersPage() {
       avatarUrl: true,
       state: true,
       isActive: true,
-      vacationDaysTotal: true,
+      vacationDaysPerYear: true,
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },

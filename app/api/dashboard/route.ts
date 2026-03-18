@@ -34,9 +34,16 @@ export async function GET() {
           firstName: true,
           lastName: true,
           avatarUrl: true,
-          vacationDaysTotal: true,
+          vacationDaysPerYear: true,
+          vacationDaysCarryOver: true,
           vacationRequests: {
-            where: { status: "APPROVED" },
+            where: {
+              status: "APPROVED",
+              startDate: {
+                gte: new Date(`${new Date().getFullYear()}-01-01T00:00:00.000Z`),
+                lte: new Date(`${new Date().getFullYear()}-12-31T23:59:59.999Z`),
+              },
+            },
             select: { workingDaysRequested: true },
           },
         },
@@ -62,17 +69,19 @@ export async function GET() {
 
     // Compute remaining vacation days per technician
     const techStats = techniciansVacationStats.map((t) => {
-      const usedDays = t.vacationRequests.reduce(
+      const usedThisYear = t.vacationRequests.reduce(
         (sum, r) => sum + r.workingDaysRequested,
         0
       );
+      const remainingThisYear = Math.max(0, t.vacationDaysPerYear - usedThisYear);
+      const totalAvailable = remainingThisYear + t.vacationDaysCarryOver;
       return {
         id: t.id,
         name: `${t.firstName} ${t.lastName}`,
         avatarUrl: t.avatarUrl,
-        total: t.vacationDaysTotal,
-        used: usedDays,
-        remaining: t.vacationDaysTotal - usedDays,
+        total: totalAvailable,
+        used: usedThisYear,
+        remaining: totalAvailable,
       };
     });
 
@@ -118,13 +127,20 @@ export async function GET() {
       take: 6,
     }),
 
-    // User with approved vacations for stats
+    // User with approved vacations for stats (current year only)
     prisma.user.findUnique({
       where: { id: userId },
       select: {
-        vacationDaysTotal: true,
+        vacationDaysPerYear: true,
+        vacationDaysCarryOver: true,
         vacationRequests: {
-          where: { status: "APPROVED" },
+          where: {
+            status: "APPROVED",
+            startDate: {
+              gte: new Date(`${new Date().getFullYear()}-01-01T00:00:00.000Z`),
+              lte: new Date(`${new Date().getFullYear()}-12-31T23:59:59.999Z`),
+            },
+          },
           select: { workingDaysRequested: true },
         },
       },
@@ -151,12 +167,15 @@ export async function GET() {
     prisma.vacationRequest.count({ where: { userId, status: "PENDING" } }),
   ]);
 
-  const usedDays =
+  const usedThisYear =
     userWithVacations?.vacationRequests.reduce(
       (sum, r) => sum + r.workingDaysRequested,
       0
     ) ?? 0;
-  const totalDays = userWithVacations?.vacationDaysTotal ?? 24;
+  const perYear = userWithVacations?.vacationDaysPerYear ?? 24;
+  const carryOver = userWithVacations?.vacationDaysCarryOver ?? 0;
+  const remainingThisYear = Math.max(0, perYear - usedThisYear);
+  const totalAvailable = remainingThisYear + carryOver;
 
   return NextResponse.json({
     role: "TECHNICIAN",
@@ -165,9 +184,9 @@ export async function GET() {
       updatedAt: i.updatedAt.toISOString(),
     })),
     vacationStats: {
-      total: totalDays,
-      used: usedDays,
-      remaining: totalDays - usedDays,
+      total: totalAvailable,
+      used: usedThisYear,
+      remaining: totalAvailable,
     },
     upcomingVacations: upcomingVacations.map((v) => ({
       ...v,

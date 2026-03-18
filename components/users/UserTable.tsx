@@ -38,7 +38,7 @@ export interface UserRow {
   avatarUrl?: string | null;
   state: string;
   isActive: boolean;
-  vacationDaysTotal: number;
+  vacationDaysPerYear: number;
   createdAt: string;
 }
 
@@ -75,8 +75,8 @@ const columns = [
     header: "Estado federal",
     cell: ({ getValue }) => <span className="text-sm">{getValue() || "—"}</span>,
   }),
-  col.accessor("vacationDaysTotal", {
-    header: "Días vacaciones",
+  col.accessor("vacationDaysPerYear", {
+    header: "Días/año",
     cell: ({ getValue }) => <span className="text-sm">{getValue()}</span>,
   }),
   col.accessor("isActive", {

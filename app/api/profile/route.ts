@@ -111,7 +111,8 @@ export async function GET() {
       state: true,
       avatarUrl: true,
       role: true,
-      vacationDaysTotal: true,
+      vacationDaysPerYear: true,
+      vacationDaysCarryOver: true,
     },
   });
 

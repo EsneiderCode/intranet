@@ -77,7 +77,8 @@ export async function GET(req: NextRequest) {
       id: true,
       firstName: true,
       lastName: true,
-      vacationDaysTotal: true,
+      vacationDaysPerYear: true,
+      vacationDaysCarryOver: true,
       vacationRequests: {
         select: {
           startDate: true,
@@ -98,13 +99,17 @@ export async function GET(req: NextRequest) {
     const usedDays = u.vacationRequests
       .filter((r) => r.status === "APPROVED")
       .reduce((s, r) => s + r.workingDaysRequested, 0);
+    const remainingThisYear = Math.max(0, u.vacationDaysPerYear - usedDays);
+    const totalAvailable = remainingThisYear + u.vacationDaysCarryOver;
 
     // Summary row
     rows.push({
       técnico: `${u.firstName} ${u.lastName}`,
-      díasTotal: u.vacationDaysTotal,
+      díasAño: u.vacationDaysPerYear,
+      díasAcumulados: u.vacationDaysCarryOver,
+      díasTotalDisponibles: totalAvailable,
       díasUsados: usedDays,
-      díasRestantes: u.vacationDaysTotal - usedDays,
+      díasRestantes: totalAvailable - usedDays,
       solicitudes: u.vacationRequests.length,
       período: "",
       díasSolicitud: "",
@@ -115,7 +120,9 @@ export async function GET(req: NextRequest) {
     for (const r of u.vacationRequests) {
       rows.push({
         técnico: "",
-        díasTotal: "",
+        díasAño: "",
+        díasAcumulados: "",
+        díasTotalDisponibles: "",
         díasUsados: "",
         díasRestantes: "",
         solicitudes: "",

@@ -12,7 +12,8 @@ export const createUserSchema = z.object({
   shoeSize: z.string().max(10).optional().default(""),
   role: z.enum(["ADMIN", "TECHNICIAN"]).default("TECHNICIAN"),
   state: z.enum(GERMAN_STATES as unknown as [string, ...string[]]).or(z.literal("")),
-  vacationDaysTotal: z.coerce.number().int().min(0).max(365).default(24),
+  vacationDaysPerYear: z.coerce.number().int().min(0).max(365).default(24),
+  vacationDaysCarryOver: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
 export const updateUserSchema = createUserSchema.partial().omit({ email: true });

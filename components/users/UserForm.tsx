@@ -48,7 +48,8 @@ export function UserForm({ mode, userId, defaultValues, onSuccess }: UserFormPro
     defaultValues: {
       shirtSize: "M",
       role: "TECHNICIAN",
-      vacationDaysTotal: 24,
+      vacationDaysPerYear: 24,
+      vacationDaysCarryOver: 0,
       state: "" as CreateUserInput["state"],
       ...defaultValues,
     },
@@ -217,23 +218,43 @@ export function UserForm({ mode, userId, defaultValues, onSuccess }: UserFormPro
           <p className="text-xs text-muted-foreground">Talla europea de calzado.</p>
         </div>
 
-        {/* Vacation days */}
+        {/* Vacation days per year */}
         <div className="space-y-1.5">
-          <Label htmlFor="vacationDaysTotal">Días de vacaciones al año</Label>
+          <Label htmlFor="vacationDaysPerYear">Días de vacaciones al año</Label>
           <Input
-            id="vacationDaysTotal"
+            id="vacationDaysPerYear"
             type="number"
             min={0}
             max={365}
-            {...register("vacationDaysTotal", { valueAsNumber: true })}
+            {...register("vacationDaysPerYear", { valueAsNumber: true })}
           />
-          {errors.vacationDaysTotal && (
-            <p className="text-xs text-destructive">{errors.vacationDaysTotal.message}</p>
+          {errors.vacationDaysPerYear && (
+            <p className="text-xs text-destructive">{errors.vacationDaysPerYear.message}</p>
           )}
           <p className="text-xs text-muted-foreground">
-            Días laborables disponibles. Por defecto: 24.
+            Asignación anual de días laborables. Por defecto: 24.
           </p>
         </div>
+
+        {/* Vacation carry-over (edit only) */}
+        {mode === "edit" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="vacationDaysCarryOver">Días acumulados de años anteriores</Label>
+            <Input
+              id="vacationDaysCarryOver"
+              type="number"
+              min={0}
+              max={9999}
+              {...register("vacationDaysCarryOver", { valueAsNumber: true })}
+            />
+            {errors.vacationDaysCarryOver && (
+              <p className="text-xs text-destructive">{errors.vacationDaysCarryOver.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Días no usados en años anteriores. El sistema los actualiza automáticamente cada 1 de enero.
+            </p>
+          </div>
+        )}
       </div>
 
       {serverError && (

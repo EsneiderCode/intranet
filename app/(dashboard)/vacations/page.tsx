@@ -13,6 +13,10 @@ export default async function VacationsPage() {
 
   // ── TECHNICIAN: fetch own data ──────────────────────────────────────────────
   if (!isAdmin) {
+    const currentYear = new Date().getFullYear();
+    const yearStart = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+    const yearEnd = new Date(`${currentYear}-12-31T23:59:59.999Z`);
+
     const [requests, user] = await Promise.all([
       prisma.vacationRequest.findMany({
         where: { userId: session.user.id },
@@ -27,7 +31,8 @@ export default async function VacationsPage() {
           id: true,
           firstName: true,
           lastName: true,
-          vacationDaysTotal: true,
+          vacationDaysPerYear: true,
+          vacationDaysCarryOver: true,
           holidays: {
             include: { holiday: true },
             orderBy: { holiday: { date: "asc" } },
@@ -52,6 +57,16 @@ export default async function VacationsPage() {
         : null,
     }));
 
+    const currentYearRequests = requests.filter(
+      (r) => r.startDate >= yearStart && r.startDate <= yearEnd
+    );
+    const usedThisYear = currentYearRequests
+      .filter((r) => r.status === "APPROVED")
+      .reduce((s, r) => s + r.workingDaysRequested, 0);
+    const pendingThisYear = currentYearRequests
+      .filter((r) => r.status === "PENDING")
+      .reduce((s, r) => s + r.workingDaysRequested, 0);
+
     return (
       <VacationPageClient
         role="TECHNICIAN"
@@ -60,13 +75,19 @@ export default async function VacationsPage() {
           id: user.id,
           firstName: user.firstName,
           lastName: user.lastName,
-          vacationDaysTotal: user.vacationDaysTotal,
+          vacationDaysPerYear: user.vacationDaysPerYear,
+          vacationDaysCarryOver: user.vacationDaysCarryOver,
           holidays: user.holidays.map((uh) => ({
             id: uh.holiday.id,
             name: uh.holiday.name,
             date: uh.holiday.date.toISOString(),
             state: uh.holiday.state,
           })),
+        }}
+        initialStats={{
+          usedThisYear,
+          pendingThisYear,
+          currentYear,
         }}
       />
     );

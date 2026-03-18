@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Sun, Clock, CalendarDays, TrendingDown, User } from "lucide-react";
+import { Sun, Clock, CalendarDays, TrendingDown, User, History } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -14,7 +14,6 @@ import { VacationCalendar } from "./VacationCalendar";
 import { VacationRequestForm } from "./VacationRequestForm";
 import { VacationList, type VacationRequestItem } from "./VacationList";
 import { HolidayManagement, type HolidayItem, type TechnicianOption } from "./HolidayManagement";
-import { calcVacationStats } from "@/lib/vacations";
 import { cn } from "@/lib/utils";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
@@ -30,8 +29,15 @@ type UserData = {
   id: string;
   firstName: string;
   lastName: string;
-  vacationDaysTotal: number;
+  vacationDaysPerYear: number;
+  vacationDaysCarryOver: number;
   holidays: Holiday[];
+};
+
+type VacationStats = {
+  usedThisYear: number;
+  pendingThisYear: number;
+  currentYear: number;
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -41,51 +47,97 @@ interface VacationPageClientProps {
   // Technician view
   initialRequests?: VacationRequestItem[];
   initialUser?: UserData;
+  initialStats?: VacationStats;
   // Admin view
   adminAllRequests?: VacationRequestItem[];
   adminAllUsers?: TechnicianOption[];
   adminAllHolidays?: HolidayItem[];
 }
 
-// ─── Stats card ───────────────────────────────────────────────────────────────
+// ─── Stats bar ────────────────────────────────────────────────────────────────
 
 function StatsBar({
-  total,
-  used,
-  pending,
-  remaining,
+  vacationDaysPerYear,
+  vacationDaysCarryOver,
+  usedThisYear,
+  pendingThisYear,
+  currentYear,
 }: {
-  total: number;
-  used: number;
-  pending: number;
-  remaining: number;
+  vacationDaysPerYear: number;
+  vacationDaysCarryOver: number;
+  usedThisYear: number;
+  pendingThisYear: number;
+  currentYear: number;
 }) {
-  const stats = [
-    { label: "Total días", value: total, icon: Sun, color: "text-[#1E3A5F] dark:text-blue-400" },
-    { label: "Usados", value: used, icon: CalendarDays, color: "text-green-600 dark:text-green-400" },
-    { label: "Pendientes", value: pending, icon: Clock, color: "text-yellow-600 dark:text-yellow-400" },
-    {
-      label: "Disponibles",
-      value: remaining,
-      icon: TrendingDown,
-      color: remaining > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
-    },
-  ];
+  const remainingThisYear = Math.max(0, vacationDaysPerYear - usedThisYear);
+  const totalAvailable = remainingThisYear + vacationDaysCarryOver;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {stats.map(({ label, value, icon: Icon, color }) => (
-        <div
-          key={label}
-          className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-1"
-        >
-          <div className="flex items-center gap-2">
-            <Icon className={cn("h-4 w-4", color)} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
-          </div>
-          <span className={cn("text-2xl font-bold", color)}>{value}</span>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Sun className="h-4 w-4 text-[#1E3A5F] dark:text-blue-400" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">{currentYear}</span>
         </div>
-      ))}
+        <span className="text-2xl font-bold text-[#1E3A5F] dark:text-blue-400">
+          {vacationDaysPerYear}
+        </span>
+        <span className="text-xs text-gray-400">días del año</span>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">Acumulados</span>
+        </div>
+        <span className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+          {vacationDaysCarryOver}
+        </span>
+        <span className="text-xs text-gray-400">años anteriores</span>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <span className="text-xs text-gray-500 dark:text-gray-400">Usados {currentYear}</span>
+        </div>
+        <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+          {usedThisYear}
+        </span>
+        {pendingThisYear > 0 && (
+          <span className="text-xs text-yellow-500 flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {pendingThisYear} pendientes
+          </span>
+        )}
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <TrendingDown
+            className={cn(
+              "h-4 w-4",
+              totalAvailable > 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-600 dark:text-red-400"
+            )}
+          />
+          <span className="text-xs text-gray-500 dark:text-gray-400">Total disponible</span>
+        </div>
+        <span
+          className={cn(
+            "text-2xl font-bold",
+            totalAvailable > 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {totalAvailable}
+        </span>
+        <span className="text-xs text-gray-400">
+          {remainingThisYear} + {vacationDaysCarryOver} acum.
+        </span>
+      </div>
     </div>
   );
 }
@@ -100,6 +152,7 @@ export function VacationPageClient({
   role,
   initialRequests = [],
   initialUser,
+  initialStats,
   adminAllRequests = [],
   adminAllUsers = [],
   adminAllHolidays = [],
@@ -113,6 +166,7 @@ export function VacationPageClient({
   const [selectedUserData, setSelectedUserData] = useState<{
     requests: VacationRequestItem[];
     user: UserData | null;
+    currentYearStats: { usedThisYear: number; pendingThisYear: number } | null;
   } | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(false);
   const [adminRequestFilter, setAdminRequestFilter] = useState<string>("ALL");
@@ -143,8 +197,12 @@ export function VacationPageClient({
   }, [selectedUserId, fetchUserData]);
 
   // ── TECHNICIAN VIEW ──────────────────────────────────────────────────────────
-  if (role === "TECHNICIAN" && initialUser) {
-    const stats = calcVacationStats(initialRequests, initialUser.vacationDaysTotal);
+  if (role === "TECHNICIAN" && initialUser && initialStats) {
+    const { vacationDaysPerYear, vacationDaysCarryOver } = initialUser;
+    const { usedThisYear, pendingThisYear, currentYear } = initialStats;
+    const remainingThisYear = Math.max(0, vacationDaysPerYear - usedThisYear);
+    const totalAvailable = remainingThisYear + vacationDaysCarryOver;
+
     const calendarHolidays = initialUser.holidays.map((h) => ({
       id: h.id,
       name: h.name,
@@ -163,10 +221,11 @@ export function VacationPageClient({
 
         {/* Stats */}
         <StatsBar
-          total={stats.total}
-          used={stats.used}
-          pending={stats.pending}
-          remaining={stats.remaining}
+          vacationDaysPerYear={vacationDaysPerYear}
+          vacationDaysCarryOver={vacationDaysCarryOver}
+          usedThisYear={usedThisYear}
+          pendingThisYear={pendingThisYear}
+          currentYear={currentYear}
         />
 
         {/* Calendar + request form */}
@@ -179,10 +238,10 @@ export function VacationPageClient({
                 <Button
                   className="w-full bg-[#1E3A5F] hover:bg-[#162d4a] text-white"
                   onClick={() => setShowRequestForm(true)}
-                  disabled={stats.remaining <= 0}
+                  disabled={totalAvailable <= 0}
                 >
                   <CalendarDays className="h-4 w-4 mr-2" />
-                  {stats.remaining > 0
+                  {totalAvailable > 0
                     ? "Solicitar vacaciones"
                     : "Sin días disponibles"}
                 </Button>
@@ -212,8 +271,8 @@ export function VacationPageClient({
               <div className="space-y-3">
                 <VacationRequestForm
                   holidays={initialUser.holidays}
-                  totalDays={stats.total}
-                  usedDays={stats.used}
+                  totalDays={totalAvailable}
+                  usedDays={0}
                   onSuccess={() => setShowRequestForm(false)}
                 />
                 <Button
@@ -246,12 +305,10 @@ export function VacationPageClient({
 
   const pendingCount = adminAllRequests.filter((r) => r.status === "PENDING").length;
 
-  // Selected user data for calendar tab
   const viewUser = selectedUserData?.user ?? null;
   const viewRequests = selectedUserData?.requests ?? [];
-  const viewStats = viewUser
-    ? calcVacationStats(viewRequests, viewUser.vacationDaysTotal)
-    : null;
+  const viewCurrentYearStats = selectedUserData?.currentYearStats ?? null;
+  const currentYear = new Date().getFullYear();
 
   const tabs: { id: AdminTab; label: string; badge?: number }[] = [
     { id: "requests", label: "Solicitudes", badge: pendingCount > 0 ? pendingCount : undefined },
@@ -322,13 +379,9 @@ export function VacationPageClient({
       {/* ── Tab: Calendario ── */}
       {activeTab === "calendar" && (
         <div className="space-y-4">
-          {/* User selector */}
           <div className="flex items-center gap-3 flex-wrap">
             <User className="h-4 w-4 text-gray-400 flex-shrink-0" />
-            <Select
-              value={selectedUserId}
-              onValueChange={setSelectedUserId}
-            >
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
               <SelectTrigger className="w-64">
                 <SelectValue placeholder="Selecciona un técnico..." />
               </SelectTrigger>
@@ -356,18 +409,17 @@ export function VacationPageClient({
 
           {!isLoadingUser && selectedUserId && viewUser && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900 dark:text-white">
-                  {viewUser.firstName} {viewUser.lastName}
-                </h3>
-              </div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">
+                {viewUser.firstName} {viewUser.lastName}
+              </h3>
 
-              {viewStats && (
+              {viewCurrentYearStats && (
                 <StatsBar
-                  total={viewStats.total}
-                  used={viewStats.used}
-                  pending={viewStats.pending}
-                  remaining={viewStats.remaining}
+                  vacationDaysPerYear={viewUser.vacationDaysPerYear}
+                  vacationDaysCarryOver={viewUser.vacationDaysCarryOver}
+                  usedThisYear={viewCurrentYearStats.usedThisYear}
+                  pendingThisYear={viewCurrentYearStats.pendingThisYear}
+                  currentYear={currentYear}
                 />
               )}
 

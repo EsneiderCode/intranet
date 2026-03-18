@@ -53,17 +53,42 @@ export function getHolidaysInRange<T extends { date: string }>(
 
 /**
  * Calculates vacation day statistics for a user.
+ *
+ * - requests: only APPROVED/PENDING requests for the CURRENT year (filtered by caller)
+ * - vacationDaysPerYear: the annual allocation (e.g. 24)
+ * - vacationDaysCarryOver: unused days accumulated from previous years
+ *
+ * Returns a breakdown separating current-year days from carry-over days.
  */
 export function calcVacationStats(
   requests: { workingDaysRequested: number; status: string }[],
-  totalDays: number
-): { total: number; used: number; pending: number; remaining: number } {
-  const used = requests
+  vacationDaysPerYear: number,
+  vacationDaysCarryOver: number
+): {
+  perYear: number;
+  carryOver: number;
+  usedThisYear: number;
+  pendingThisYear: number;
+  remainingThisYear: number;
+  totalAvailable: number;
+} {
+  const usedThisYear = requests
     .filter((r) => r.status === "APPROVED")
     .reduce((sum, r) => sum + r.workingDaysRequested, 0);
-  const pending = requests
+
+  const pendingThisYear = requests
     .filter((r) => r.status === "PENDING")
     .reduce((sum, r) => sum + r.workingDaysRequested, 0);
-  const remaining = totalDays - used;
-  return { total: totalDays, used, pending, remaining };
+
+  const remainingThisYear = Math.max(0, vacationDaysPerYear - usedThisYear);
+  const totalAvailable = remainingThisYear + vacationDaysCarryOver;
+
+  return {
+    perYear: vacationDaysPerYear,
+    carryOver: vacationDaysCarryOver,
+    usedThisYear,
+    pendingThisYear,
+    remainingThisYear,
+    totalAvailable,
+  };
 }
