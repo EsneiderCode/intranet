@@ -398,6 +398,7 @@ export function InventoryItemDetail({
           </DialogHeader>
           <TransferRequestForm
             itemId={item.id}
+            isElectronic={item.isElectronic}
             technicians={technicians}
             squads={squads}
             onClose={() => setTransferOpen(false)}
