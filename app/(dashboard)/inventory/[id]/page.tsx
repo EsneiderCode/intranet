@@ -31,6 +31,12 @@ export default async function InventoryItemPage({
       assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
       addedBy: { select: { id: true, firstName: true, lastName: true } },
       photos: { select: { id: true, url: true, order: true }, orderBy: { order: "asc" } },
+      isElectronic: true,
+      checklistBrokenParts: true,
+      checklistCase: true,
+      checklistCasePhotoUrl: true,
+      checklistCharger: true,
+      checklistChargerPhotoUrl: true,
     },
   });
 

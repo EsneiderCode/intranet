@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChevronLeft, QrCode, ArrowRightLeft, X } from "lucide-react";
+import { ChevronLeft, QrCode, ArrowRightLeft, X, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 type Tab = "info" | "history" | "transfers";
@@ -41,6 +41,12 @@ interface InventoryItem {
   assignedTo?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null;
   addedBy: { id: string; firstName: string; lastName: string };
   photos?: ItemPhoto[];
+  isElectronic: boolean;
+  checklistBrokenParts: boolean | null;
+  checklistCase: boolean | null;
+  checklistCasePhotoUrl: string;
+  checklistCharger: boolean | null;
+  checklistChargerPhotoUrl: string;
 }
 
 interface TransferRecord {
@@ -74,6 +80,38 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "history", label: "Historial" },
   { id: "transfers", label: "Transferencias" },
 ];
+
+function ChecklistRow({ label, value }: { label: string; value: boolean | null }) {
+  if (value === null || value === undefined) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <MinusCircle className="h-4 w-4 flex-shrink-0" />
+        <span>{label}: <span className="italic">No registrado</span></span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {value ? (
+        <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+      ) : (
+        <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+      )}
+      <span>{label}: <span className="font-medium">{value ? "Sí" : "No"}</span></span>
+    </div>
+  );
+}
+
+function ChecklistPhoto({ url, label, onOpen }: { url: string; label: string; onOpen: (u: string) => void }) {
+  return (
+    <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => onOpen(url)}>
+      <div className="relative w-20 h-20 rounded-md border overflow-hidden">
+        <Image src={url} alt={label} fill className="object-cover" />
+      </div>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
 
 export function InventoryItemDetail({
   item,
@@ -276,6 +314,36 @@ export function InventoryItemDetail({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === "info" && (
+        <div className="rounded-lg border p-4 space-y-4">
+          <p className="text-sm font-semibold">Checklist de recepción</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Broken parts */}
+            <ChecklistRow
+              label="Partes rotas / daños visibles"
+              value={item.checklistBrokenParts}
+            />
+            {/* Case */}
+            <ChecklistRow label="Funda / estuche incluido" value={item.checklistCase} />
+            {/* Charger — only if electronic */}
+            {item.isElectronic && (
+              <ChecklistRow label="Cargador incluido" value={item.checklistCharger} />
+            )}
+          </div>
+          {/* Photos */}
+          {(item.checklistCasePhotoUrl || item.checklistChargerPhotoUrl) && (
+            <div className="flex flex-wrap gap-3 pt-1">
+              {item.checklistCasePhotoUrl && (
+                <ChecklistPhoto url={item.checklistCasePhotoUrl} label="Foto funda/estuche" onOpen={setLightboxUrl} />
+              )}
+              {item.checklistChargerPhotoUrl && (
+                <ChecklistPhoto url={item.checklistChargerPhotoUrl} label="Foto cargador" onOpen={setLightboxUrl} />
+              )}
+            </div>
+          )}
         </div>
       )}
 
