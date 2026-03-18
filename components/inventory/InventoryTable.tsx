@@ -366,13 +366,17 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               </tr>
             ) : (
               visibleRows.map((row) => (
-                <tr key={row.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                <tr
+                  key={row.id}
+                  className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                  onClick={() => router.push(`/inventory/${row.original.id}`)}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-4 py-3">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
@@ -416,7 +420,11 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           <p className="text-center text-muted-foreground py-8">No hay resultados.</p>
         ) : (
           visibleRows.map((row) => (
-            <div key={row.id} className="rounded-lg border bg-card p-4 space-y-3">
+            <div
+              key={row.id}
+              className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/30 transition-colors"
+              onClick={() => router.push(`/inventory/${row.original.id}`)}
+            >
               <div className="flex items-start gap-3">
                 <div className="h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
                   {row.original.imageUrl ? (
@@ -461,7 +469,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
                 </div>
               )}
 
-              <div className="flex gap-2 justify-end flex-wrap">
+              <div className="flex gap-2 justify-end flex-wrap" onClick={(e) => e.stopPropagation()}>
                 <Button
                   size="sm"
                   variant="outline"
