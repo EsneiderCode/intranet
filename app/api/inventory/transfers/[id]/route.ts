@@ -83,7 +83,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }).catch(() => {});
 
   // If approved, notify the recipient technician
-  if (isApproved) {
+  if (isApproved && transfer.toUserId) {
     createNotification({
       userId: transfer.toUserId,
       type: "ITEM_ASSIGNED",
