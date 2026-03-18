@@ -68,16 +68,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (status) updateData.status = status;
 
     if (session.user.role === "ADMIN") {
-      if (squadId !== null && squadId !== "") {
-        if (squadId === "none") {
-          updateData.squadId = null;
-        } else {
-          updateData.squadId = squadId;
-          updateData.assignedToId = null;
+      if (squadId !== null && squadId !== "" && squadId !== "none") {
+        updateData.squadId = squadId;
+        updateData.assignedToId = null;
+      } else {
+        // squadId is "none" or empty — clear squad and process assignedToId
+        updateData.squadId = null;
+        if (assignedToId !== null) {
+          updateData.assignedToId = assignedToId === "none" ? null : assignedToId;
         }
-      } else if (assignedToId !== null) {
-        updateData.assignedToId = assignedToId === "none" ? null : assignedToId;
-        if (assignedToId !== "none") updateData.squadId = null;
       }
     }
 
