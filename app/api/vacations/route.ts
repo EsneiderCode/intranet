@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
               id: uh.holiday.id,
               name: uh.holiday.name,
               date: uh.holiday.date.toISOString(),
-              state: uh.holiday.state,
+              states: uh.holiday.states,
             })),
           }
         : null,

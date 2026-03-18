@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createUserSchema } from "@/lib/validations/user";
 import { sendInviteEmail } from "@/lib/email";
+import { autoAssignHolidaysToUser } from "@/lib/holiday-assignment";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
@@ -109,6 +110,13 @@ export async function POST(req: NextRequest) {
       createdAt: true,
     },
   });
+
+  // Auto-assign holidays based on state (non-blocking)
+  if (data.state) {
+    autoAssignHolidaysToUser(user.id, data.state).catch((err) =>
+      console.error("[holidays] Failed to auto-assign holidays to new user:", err)
+    );
+  }
 
   // Send invite email (non-blocking failure)
   try {

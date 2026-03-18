@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest) {
     await prisma.$transaction([
       // Remove all existing assignments for this holiday
       prisma.userHoliday.deleteMany({ where: { holidayId } }),
-      // Create new assignments
+      // Create new assignments (assignedById = admin who made the manual change)
       ...userIds.map((userId) =>
         prisma.userHoliday.create({
           data: { userId, holidayId, assignedById: session.user.id },

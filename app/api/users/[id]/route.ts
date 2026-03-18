@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateUserSchema } from "@/lib/validations/user";
+import { autoAssignHolidaysToUser } from "@/lib/holiday-assignment";
 
 // GET /api/users/[id]
 export async function GET(
@@ -89,6 +90,13 @@ export async function PATCH(
       isActive: true,
     },
   });
+
+  // Auto-assign holidays if state was updated (non-blocking)
+  if (data.state !== undefined && data.state) {
+    autoAssignHolidaysToUser(id, data.state).catch((err) =>
+      console.error("[holidays] Failed to auto-assign holidays on state update:", err)
+    );
+  }
 
   return NextResponse.json(user);
 }

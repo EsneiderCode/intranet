@@ -22,7 +22,7 @@ type Holiday = {
   id: string;
   name: string;
   date: string;
-  state: string | null;
+  states: string[];
 };
 
 type UserData = {

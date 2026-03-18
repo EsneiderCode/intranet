@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { seedHolidaysForYear } from "./holiday-assignment";
 
 /**
  * Year-close job: runs on January 1st at 00:00 (Europe/Berlin).
@@ -41,4 +42,27 @@ export async function yearCloseJob() {
   }
 
   console.log(`[cron] Year-close job for ${closingYear} completed. ${users.length} users processed.`);
+}
+
+/**
+ * Holiday seed job: runs on December 1st at 00:00 (Europe/Berlin).
+ * Seeds all German public holidays for the upcoming year and auto-assigns them
+ * to all relevant active users.
+ */
+export async function seedNextYearHolidaysJob() {
+  const nextYear = new Date().getFullYear() + 1;
+  console.log(`[cron] Seeding holidays for year ${nextYear}`);
+
+  const admin = await prisma.user.findFirst({
+    where: { role: "ADMIN", isActive: true },
+    select: { id: true },
+  });
+
+  if (!admin) {
+    console.error("[cron] No active admin found — skipping holiday seed");
+    return;
+  }
+
+  const count = await seedHolidaysForYear(nextYear, admin.id);
+  console.log(`[cron] Holiday seed for ${nextYear} completed. ${count} holidays processed.`);
 }

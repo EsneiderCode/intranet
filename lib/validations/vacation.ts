@@ -50,15 +50,16 @@ export const createHolidaySchema = z.object({
     .min(1, "El nombre es requerido")
     .max(100, "Máximo 100 caracteres"),
   date: z.string().min(1, "La fecha es requerida"),
-  state: z.string().optional(),
+  states: z.array(z.string()).default([]),
 });
 
 export const assignHolidaySchema = z.object({
   holidayId: z.string().min(1),
-  userIds: z.array(z.string()).min(1, "Selecciona al menos un técnico"),
+  userIds: z.array(z.string()),
 });
 
 export type CreateVacationRequestInput = z.infer<typeof createVacationRequestSchema>;
 export type ResolveVacationRequestInput = z.infer<typeof resolveVacationRequestSchema>;
 export type CreateHolidayInput = z.infer<typeof createHolidaySchema>;
+
 export type AssignHolidayInput = z.infer<typeof assignHolidaySchema>;
