@@ -172,7 +172,7 @@ export async function GET() {
       (sum, r) => sum + r.workingDaysRequested,
       0
     ) ?? 0;
-  const perYear = userWithVacations?.vacationDaysPerYear ?? 24;
+  const perYear = userWithVacations?.vacationDaysPerYear ?? 25;
   const carryOver = userWithVacations?.vacationDaysCarryOver ?? 0;
   const remainingThisYear = Math.max(0, perYear - usedThisYear);
   const totalAvailable = remainingThisYear + carryOver;

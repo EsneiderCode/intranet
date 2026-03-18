@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
     ]);
 
     const usedThisYear = approvedThisYear._sum.workingDaysRequested ?? 0;
-    const perYear = user?.vacationDaysPerYear ?? 24;
+    const perYear = user?.vacationDaysPerYear ?? 25;
     const carryOver = user?.vacationDaysCarryOver ?? 0;
     const remainingThisYear = Math.max(0, perYear - usedThisYear);
     const totalAvailable = remainingThisYear + carryOver;

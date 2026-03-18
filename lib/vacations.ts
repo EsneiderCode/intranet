@@ -55,7 +55,7 @@ export function getHolidaysInRange<T extends { date: string }>(
  * Calculates vacation day statistics for a user.
  *
  * - requests: only APPROVED/PENDING requests for the CURRENT year (filtered by caller)
- * - vacationDaysPerYear: the annual allocation (e.g. 24)
+ * - vacationDaysPerYear: the annual allocation (e.g. 25)
  * - vacationDaysCarryOver: unused days accumulated from previous years
  *
  * Returns a breakdown separating current-year days from carry-over days.

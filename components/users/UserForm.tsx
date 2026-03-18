@@ -48,7 +48,7 @@ export function UserForm({ mode, userId, defaultValues, onSuccess }: UserFormPro
     defaultValues: {
       shirtSize: "M",
       role: "TECHNICIAN",
-      vacationDaysPerYear: 24,
+      vacationDaysPerYear: 25,
       vacationDaysCarryOver: 0,
       state: "" as CreateUserInput["state"],
       ...defaultValues,
