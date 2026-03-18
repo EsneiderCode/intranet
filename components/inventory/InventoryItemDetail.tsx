@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChevronLeft, QrCode, ArrowRightLeft } from "lucide-react";
+import { ChevronLeft, QrCode, ArrowRightLeft, X } from "lucide-react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 type Tab = "info" | "history" | "transfers";
+
+interface ItemPhoto {
+  id: string;
+  url: string;
+  order: number;
+}
 
 interface InventoryItem {
   id: string;
@@ -34,6 +40,7 @@ interface InventoryItem {
   updatedAt: string;
   assignedTo?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null;
   addedBy: { id: string; firstName: string; lastName: string };
+  photos?: ItemPhoto[];
 }
 
 interface TransferRecord {
@@ -80,6 +87,13 @@ export function InventoryItemDetail({
   const [activeTab, setActiveTab] = useState<Tab>("info");
   const [qrOpen, setQrOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<ItemPhoto[]>(item.photos ?? []);
+
+  const handleDeletePhoto = useCallback(async (photoId: string) => {
+    await fetch(`/api/inventory/${item.id}/photos/${photoId}`, { method: "DELETE" });
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  }, [item.id]);
 
   return (
     <div className="space-y-6">
@@ -166,6 +180,36 @@ export function InventoryItemDetail({
               )}
             </div>
 
+            {/* Secondary photos gallery */}
+            {photos.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Fotos adicionales</p>
+                <div className="flex flex-wrap gap-2">
+                  {photos.map((photo) => (
+                    <div
+                      key={photo.id}
+                      className="relative w-16 h-16 rounded-md border overflow-hidden cursor-pointer group flex-shrink-0"
+                      onClick={() => setLightboxUrl(photo.url)}
+                    >
+                      <Image src={photo.url} alt="Foto adicional" fill className="object-cover" />
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePhoto(photo.id);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Assigned to */}
             <div className="rounded-lg border p-4 space-y-3">
               <p className="text-sm font-medium">Asignado a</p>
@@ -214,6 +258,7 @@ export function InventoryItemDetail({
                   imageUrl: item.imageUrl,
                   status: item.status,
                   assignedToId: item.assignedToId,
+                  photos,
                 }}
               />
             ) : (
@@ -265,6 +310,20 @@ export function InventoryItemDetail({
             technicians={technicians}
             onClose={() => setTransferOpen(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Lightbox */}
+      <Dialog open={!!lightboxUrl} onOpenChange={(o) => !o && setLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Foto</DialogTitle>
+          </DialogHeader>
+          {lightboxUrl && (
+            <div className="relative w-full aspect-video">
+              <Image src={lightboxUrl} alt="Foto ampliada" fill className="object-contain rounded-md" />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

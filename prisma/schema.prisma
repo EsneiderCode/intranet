@@ -114,12 +114,25 @@ model InventoryItem {
   updatedAt    DateTime   @updatedAt
 
   // Relations
-  assignedTo       User?              @relation("AssignedTo", fields: [assignedToId], references: [id])
-  addedBy          User               @relation("AddedBy", fields: [addedById], references: [id])
+  assignedTo       User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
+  addedBy          User                @relation("AddedBy", fields: [addedById], references: [id])
   history          InventoryHistory[]
   transferRequests TransferRequest[]
+  photos           InventoryItemPhoto[]
 
   @@map("inventory_items")
+}
+
+model InventoryItemPhoto {
+  id        String        @id @default(cuid())
+  itemId    String
+  url       String
+  order     Int           @default(0)
+  createdAt DateTime      @default(now())
+
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_item_photos")
 }
 
 model InventoryHistory {

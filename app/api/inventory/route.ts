@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
   let status = "AVAILABLE";
   let assignedToId: string | null = null;
   let imageUrl = "";
+  const extraImages: File[] = [];
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await req.formData();
@@ -94,6 +95,15 @@ export async function POST(req: NextRequest) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const result = await uploadAvatar(buffer, file.name);
       imageUrl = result.url;
+    }
+
+    // Collect secondary images
+    let extraIdx = 0;
+    while (true) {
+      const extraFile = formData.get(`extraImage_${extraIdx}`) as File | null;
+      if (!extraFile || extraFile.size === 0) break;
+      extraImages.push(extraFile);
+      extraIdx++;
     }
   } else {
     const body = await req.json();
@@ -149,6 +159,18 @@ export async function POST(req: NextRequest) {
         addedBy: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+
+    // Upload secondary photos
+    if (extraImages.length > 0) {
+      const photoData = await Promise.all(
+        extraImages.map(async (file, i) => {
+          const buffer = Buffer.from(await file.arrayBuffer());
+          const result = await uploadAvatar(buffer, file.name);
+          return { itemId: item.id, url: result.url, order: i };
+        })
+      );
+      await prisma.inventoryItemPhoto.createMany({ data: photoData });
+    }
 
     // Log CREATED history
     await prisma.inventoryHistory.create({

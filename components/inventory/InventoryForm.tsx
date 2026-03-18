@@ -12,12 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ImagePlus, X } from "lucide-react";
+import { ImagePlus, Plus, X } from "lucide-react";
 
 interface Technician {
   id: string;
   firstName: string;
   lastName: string;
+}
+
+interface ExistingPhoto {
+  id: string;
+  url: string;
 }
 
 interface InventoryFormProps {
@@ -32,6 +37,7 @@ interface InventoryFormProps {
     imageUrl: string;
     status: string;
     assignedToId?: string | null;
+    photos?: ExistingPhoto[];
   };
 }
 
@@ -61,6 +67,12 @@ export function InventoryForm({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(initialData?.imageUrl ?? "");
 
+  // Secondary photos
+  const extraFileRef = useRef<HTMLInputElement>(null);
+  const [existingPhotos, setExistingPhotos] = useState<ExistingPhoto[]>(initialData?.photos ?? []);
+  const [newExtraFiles, setNewExtraFiles] = useState<File[]>([]);
+  const [newExtraPreviews, setNewExtraPreviews] = useState<string[]>([]);
+
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState("");
@@ -76,6 +88,25 @@ export function InventoryForm({
     setImageFile(null);
     setImagePreview("");
     if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function handleExtraFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setNewExtraFiles((prev) => [...prev, ...files]);
+    setNewExtraPreviews((prev) => [...prev, ...files.map((f) => URL.createObjectURL(f))]);
+    if (extraFileRef.current) extraFileRef.current.value = "";
+  }
+
+  function removeNewExtra(index: number) {
+    setNewExtraFiles((prev) => prev.filter((_, i) => i !== index));
+    setNewExtraPreviews((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function deleteExistingPhoto(photoId: string) {
+    if (!initialData?.id) return;
+    await fetch(`/api/inventory/${initialData.id}/photos/${photoId}`, { method: "DELETE" });
+    setExistingPhotos((prev) => prev.filter((p) => p.id !== photoId));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -102,6 +133,9 @@ export function InventoryForm({
     if (imageFile) {
       formData.append("image", imageFile);
     }
+    newExtraFiles.forEach((file, i) => {
+      formData.append(`extraImage_${i}`, file);
+    });
 
     const url = mode === "create" ? "/api/inventory" : `/api/inventory/${initialData!.id}`;
     const method = mode === "create" ? "POST" : "PATCH";
@@ -177,6 +211,61 @@ export function InventoryForm({
           className="hidden"
           onChange={handleFileChange}
         />
+      </div>
+
+      {/* Secondary photos */}
+      <div className="space-y-1.5">
+        <Label>Fotos adicionales</Label>
+        <div className="flex flex-wrap gap-3 items-start">
+          {/* Existing photos (edit mode) */}
+          {existingPhotos.map((photo) => (
+            <div key={photo.id} className="relative w-20 h-20 rounded-lg border overflow-hidden flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo.url} alt="Foto" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
+                onClick={() => deleteExistingPhoto(photo.id)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {/* New queued photos */}
+          {newExtraPreviews.map((src, i) => (
+            <div key={i} className="relative w-20 h-20 rounded-lg border overflow-hidden flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="Nueva foto" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                className="absolute top-0.5 right-0.5 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
+                onClick={() => removeNewExtra(i)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {/* Add button */}
+          <button
+            type="button"
+            className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/60 transition-colors flex flex-col items-center justify-center gap-1 flex-shrink-0"
+            onClick={() => extraFileRef.current?.click()}
+          >
+            <Plus className="h-5 w-5 text-muted-foreground/50" />
+            <span className="text-xs text-muted-foreground/70">Añadir</span>
+          </button>
+        </div>
+        <input
+          ref={extraFileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={handleExtraFilesChange}
+        />
+        <p className="text-xs text-muted-foreground">Puedes añadir varias fotos adicionales del ítem.</p>
       </div>
 
       {/* Name */}

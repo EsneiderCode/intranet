@@ -17,6 +17,7 @@ const itemSelect = {
   updatedAt: true,
   assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
   addedBy: { select: { id: true, firstName: true, lastName: true } },
+  photos: { select: { id: true, url: true, order: true }, orderBy: { order: "asc" as const } },
 };
 
 // GET /api/inventory/[id]
@@ -73,6 +74,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const result = await uploadAvatar(buffer, file.name);
       newImageUrl = result.url;
       updateData.imageUrl = newImageUrl;
+    }
+
+    // Collect secondary images
+    const extraImages: File[] = [];
+    let extraIdx = 0;
+    while (true) {
+      const extraFile = formData.get(`extraImage_${extraIdx}`) as File | null;
+      if (!extraFile || extraFile.size === 0) break;
+      extraImages.push(extraFile);
+      extraIdx++;
+    }
+
+    if (extraImages.length > 0) {
+      const existingCount = await prisma.inventoryItemPhoto.count({ where: { itemId: id } });
+      const photoData = await Promise.all(
+        extraImages.map(async (f, i) => {
+          const buffer = Buffer.from(await f.arrayBuffer());
+          const result = await uploadAvatar(buffer, f.name);
+          return { itemId: id, url: result.url, order: existingCount + i };
+        })
+      );
+      await prisma.inventoryItemPhoto.createMany({ data: photoData });
     }
   } else {
     const body = await req.json();
