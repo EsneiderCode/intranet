@@ -289,7 +289,7 @@ export function InventoryForm({
         if (data.error && typeof data.error === "object" && "fieldErrors" in data.error) {
           const fe: Record<string, string> = {};
           for (const [k, v] of Object.entries((data.error as Record<string, string[]>).fieldErrors ?? {})) {
-            fe[k] = (v as string[])[0];
+            fe[k] = (v as unknown as string[])[0];
           }
           setErrors(fe);
         } else {
