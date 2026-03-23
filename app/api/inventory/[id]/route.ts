@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { updateInventoryItemSchema } from "@/lib/validations/inventory";
 import { uploadAvatar } from "@/lib/cloudinary";
 
+export const maxDuration = 120; // seconds — allow enough time for Cloudinary uploads
+
 const itemSelect = {
   id: true,
   name: true,

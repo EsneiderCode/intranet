@@ -5,6 +5,8 @@ import { createInventoryItemSchema } from "@/lib/validations/inventory";
 import { uploadAvatar } from "@/lib/cloudinary";
 import QRCode from "qrcode";
 
+export const maxDuration = 120; // seconds — allow enough time for multiple Cloudinary uploads
+
 // GET /api/inventory — list items (all authenticated users)
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -125,25 +127,8 @@ export async function POST(req: NextRequest) {
     if (rawCharger !== null) checklistCharger = rawCharger === "true";
 
     const file = formData.get("image") as File | null;
-    if (file && file.size > 0) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const result = await uploadAvatar(buffer, file.name);
-      imageUrl = result.url;
-    }
-
-    // Checklist photos
     const casePhotoFile = formData.get("checklistCasePhoto") as File | null;
-    if (casePhotoFile && casePhotoFile.size > 0) {
-      const buffer = Buffer.from(await casePhotoFile.arrayBuffer());
-      const result = await uploadAvatar(buffer, casePhotoFile.name);
-      checklistCasePhotoUrl = result.url;
-    }
     const chargerPhotoFile = formData.get("checklistChargerPhoto") as File | null;
-    if (chargerPhotoFile && chargerPhotoFile.size > 0) {
-      const buffer = Buffer.from(await chargerPhotoFile.arrayBuffer());
-      const result = await uploadAvatar(buffer, chargerPhotoFile.name);
-      checklistChargerPhotoUrl = result.url;
-    }
 
     // Collect secondary images
     let extraIdx = 0;
@@ -153,6 +138,27 @@ export async function POST(req: NextRequest) {
       extraImages.push(extraFile);
       extraIdx++;
     }
+
+    // Upload all images in parallel
+    const uploadTasks: Promise<void>[] = [];
+
+    if (file && file.size > 0) {
+      uploadTasks.push(
+        file.arrayBuffer().then((ab) => uploadAvatar(Buffer.from(ab), file.name)).then((r) => { imageUrl = r.url; })
+      );
+    }
+    if (casePhotoFile && casePhotoFile.size > 0) {
+      uploadTasks.push(
+        casePhotoFile.arrayBuffer().then((ab) => uploadAvatar(Buffer.from(ab), casePhotoFile.name)).then((r) => { checklistCasePhotoUrl = r.url; })
+      );
+    }
+    if (chargerPhotoFile && chargerPhotoFile.size > 0) {
+      uploadTasks.push(
+        chargerPhotoFile.arrayBuffer().then((ab) => uploadAvatar(Buffer.from(ab), chargerPhotoFile.name)).then((r) => { checklistChargerPhotoUrl = r.url; })
+      );
+    }
+
+    await Promise.all(uploadTasks);
   } else {
     const body = await req.json();
     name = body.name;

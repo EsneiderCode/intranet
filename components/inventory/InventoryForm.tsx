@@ -276,25 +276,35 @@ export function InventoryForm({
     const url = mode === "create" ? "/api/inventory" : `/api/inventory/${initialData!.id}`;
     const method = mode === "create" ? "POST" : "PATCH";
 
-    const res = await fetch(url, { method, body: formData });
-    const data = await res.json();
-    setSubmitting(false);
+    try {
+      const res = await fetch(url, { method, body: formData });
 
-    if (!res.ok) {
-      if (data.error?.fieldErrors) {
-        const fe: Record<string, string> = {};
-        for (const [k, v] of Object.entries(data.error.fieldErrors as Record<string, string[]>)) {
-          fe[k] = (v as string[])[0];
-        }
-        setErrors(fe);
-      } else {
-        setServerError(typeof data.error === "string" ? data.error : "Error al guardar");
+      let data: Record<string, unknown> = {};
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        data = await res.json();
       }
-      return;
-    }
 
-    router.push("/inventory");
-    router.refresh();
+      if (!res.ok) {
+        if (data.error && typeof data.error === "object" && "fieldErrors" in data.error) {
+          const fe: Record<string, string> = {};
+          for (const [k, v] of Object.entries((data.error as Record<string, string[]>).fieldErrors ?? {})) {
+            fe[k] = (v as string[])[0];
+          }
+          setErrors(fe);
+        } else {
+          setServerError(typeof data.error === "string" ? data.error : "Error al guardar. Intenta de nuevo.");
+        }
+        return;
+      }
+
+      router.push("/inventory");
+      router.refresh();
+    } catch {
+      setServerError("Error de conexión. Verifica tu internet e intenta de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
