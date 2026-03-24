@@ -14,6 +14,7 @@ export const createUserSchema = z.object({
   state: z.enum(GERMAN_STATES as unknown as [string, ...string[]]).or(z.literal("")),
   vacationDaysPerYear: z.coerce.number().int().min(0).max(365).default(25),
   vacationDaysCarryOver: z.coerce.number().int().min(0).max(9999).default(0),
+  vacationDaysUsedExternal: z.coerce.number().int().min(0).max(9999).default(0),
 });
 
 export const updateUserSchema = createUserSchema.partial().omit({ email: true });

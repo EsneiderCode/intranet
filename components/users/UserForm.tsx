@@ -50,6 +50,7 @@ export function UserForm({ mode, userId, defaultValues, onSuccess }: UserFormPro
       role: "TECHNICIAN",
       vacationDaysPerYear: 25,
       vacationDaysCarryOver: 0,
+      vacationDaysUsedExternal: 0,
       state: "" as CreateUserInput["state"],
       ...defaultValues,
     },
@@ -237,6 +238,24 @@ export function UserForm({ mode, userId, defaultValues, onSuccess }: UserFormPro
             </p>
           </div>
         )}
+
+        {/* Vacation days used outside the system (both modes) */}
+        <div className="space-y-1.5">
+          <Label htmlFor="vacationDaysUsedExternal">Días de vacaciones ya usados este año</Label>
+          <Input
+            id="vacationDaysUsedExternal"
+            type="number"
+            min={0}
+            max={9999}
+            {...register("vacationDaysUsedExternal", { valueAsNumber: true })}
+          />
+          {errors.vacationDaysUsedExternal && (
+            <p className="text-xs text-destructive">{errors.vacationDaysUsedExternal.message}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Días que el técnico ya usó este año antes de ser registrado en el sistema (p.ej. si fue dado de alta en junio).
+          </p>
+        </div>
       </div>
 
       {serverError && (

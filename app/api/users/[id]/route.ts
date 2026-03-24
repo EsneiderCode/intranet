@@ -33,6 +33,7 @@ export async function GET(
       isActive: true,
       vacationDaysPerYear: true,
       vacationDaysCarryOver: true,
+      vacationDaysUsedExternal: true,
       mustChangePassword: true,
       createdAt: true,
     },
@@ -79,6 +80,9 @@ export async function PATCH(
       }),
       ...(data.vacationDaysCarryOver !== undefined && {
         vacationDaysCarryOver: data.vacationDaysCarryOver,
+      }),
+      ...(data.vacationDaysUsedExternal !== undefined && {
+        vacationDaysUsedExternal: data.vacationDaysUsedExternal,
       }),
     },
     select: {

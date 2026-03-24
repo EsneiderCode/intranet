@@ -74,8 +74,9 @@ model User {
   shoeSize           String    @default("")
   role               Role      @default(TECHNICIAN)
   avatarUrl          String?
-  vacationDaysPerYear   Int       @default(25)
-  vacationDaysCarryOver Int       @default(0)
+  vacationDaysPerYear      Int       @default(25)
+  vacationDaysCarryOver    Int       @default(0)
+  vacationDaysUsedExternal Int       @default(0)
   state              String    @default("")
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(false)

@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
           lastName: true,
           vacationDaysPerYear: true,
           vacationDaysCarryOver: true,
+          vacationDaysUsedExternal: true,
           holidays: {
             include: { holiday: true },
           },
@@ -68,6 +69,7 @@ export async function GET(req: NextRequest) {
             lastName: user.lastName,
             vacationDaysPerYear: user.vacationDaysPerYear,
             vacationDaysCarryOver: user.vacationDaysCarryOver,
+            vacationDaysUsedExternal: user.vacationDaysUsedExternal,
             holidays: user.holidays.map((uh) => ({
               id: uh.holiday.id,
               name: uh.holiday.name,
@@ -77,9 +79,11 @@ export async function GET(req: NextRequest) {
           }
         : null,
       currentYearStats: {
-        usedThisYear: currentYearRequests
-          .filter((r) => r.status === "APPROVED")
-          .reduce((s, r) => s + r.workingDaysRequested, 0),
+        usedThisYear:
+          currentYearRequests
+            .filter((r) => r.status === "APPROVED")
+            .reduce((s, r) => s + r.workingDaysRequested, 0) +
+          (user?.vacationDaysUsedExternal ?? 0),
         pendingThisYear: currentYearRequests
           .filter((r) => r.status === "PENDING")
           .reduce((s, r) => s + r.workingDaysRequested, 0),
@@ -142,11 +146,13 @@ export async function POST(req: NextRequest) {
       }),
       prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { vacationDaysPerYear: true, vacationDaysCarryOver: true },
+        select: { vacationDaysPerYear: true, vacationDaysCarryOver: true, vacationDaysUsedExternal: true },
       }),
     ]);
 
-    const usedThisYear = approvedThisYear._sum.workingDaysRequested ?? 0;
+    const approvedFromRequests = approvedThisYear._sum.workingDaysRequested ?? 0;
+    const externalUsed = user?.vacationDaysUsedExternal ?? 0;
+    const usedThisYear = approvedFromRequests + externalUsed;
     const perYear = user?.vacationDaysPerYear ?? 25;
     const carryOver = user?.vacationDaysCarryOver ?? 0;
     const remainingThisYear = Math.max(0, perYear - usedThisYear);
