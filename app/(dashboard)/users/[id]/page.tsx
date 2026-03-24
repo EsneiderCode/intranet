@@ -38,6 +38,7 @@ export default async function EditUserPage({
       isActive: true,
       vacationDaysPerYear: true,
       vacationDaysCarryOver: true,
+      vacationDaysUsedExternal: true,
     },
   });
 
@@ -95,6 +96,7 @@ export default async function EditUserPage({
             state: (user.state as CreateUserInput["state"]) ?? "",
             vacationDaysPerYear: user.vacationDaysPerYear,
             vacationDaysCarryOver: user.vacationDaysCarryOver,
+            vacationDaysUsedExternal: user.vacationDaysUsedExternal,
           }}
         />
       </div>
