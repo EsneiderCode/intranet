@@ -101,7 +101,7 @@ Rellena los valores de producción:
 ```env
 DATABASE_URL="postgresql://umtelkomd:CONTRASEÑA_SEGURA@localhost:5432/umtelkomd"
 NEXTAUTH_SECRET="GENERA_CON_openssl_rand_base64_32"
-NEXTAUTH_URL="https://umtelkomd.net"
+NEXTAUTH_URL="https://app.umtelkomd.net"
 CLOUDINARY_CLOUD_NAME="tu-cloud-name"
 CLOUDINARY_API_KEY="tu-api-key"
 CLOUDINARY_API_SECRET="tu-api-secret"
@@ -191,7 +191,7 @@ server {
     server_name umtelkomd.net www.umtelkomd.net;
 
     # Límite de tamaño de upload (para imágenes de inventario y avatares)
-    client_max_body_size 10M;
+    client_max_body_size 20M;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -203,6 +203,11 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+
+        # Timeouts extendidos para uploads a Cloudinary (pueden tardar > 60s)
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
     }
 }
 ```
@@ -210,7 +215,7 @@ server {
 ### 4.2 Activar el sitio
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/umtelkomd /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/intranet /etc/nginx/sites-enabled/
 sudo nginx -t          # verificar configuración
 sudo systemctl reload nginx
 ```
