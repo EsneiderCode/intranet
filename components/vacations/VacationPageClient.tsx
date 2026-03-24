@@ -268,27 +268,32 @@ export function VacationPageClient({
                     ? "Solicitar vacaciones"
                     : "Sin días disponibles"}
                 </Button>
-                {initialUser.holidays.length > 0 && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-3">
-                    <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
-                      Tus festivos asignados
-                    </p>
-                    <ul className="space-y-0.5">
-                      {initialUser.holidays.map((h) => (
-                        <li key={h.id} className="text-xs text-blue-600 dark:text-blue-400 flex justify-between">
-                          <span>{h.name}</span>
-                          <span className="text-blue-400">
-                            {new Date(h.date).toLocaleDateString("es-ES", {
-                              day: "numeric",
-                              month: "short",
-                              timeZone: "UTC",
-                            })}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {(() => {
+                  const currentYearHolidays = initialUser.holidays.filter(
+                    (h) => new Date(h.date).getUTCFullYear() === new Date().getFullYear()
+                  );
+                  return currentYearHolidays.length > 0 ? (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-3">
+                      <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
+                        Tus festivos asignados ({new Date().getFullYear()})
+                      </p>
+                      <ul className="space-y-0.5">
+                        {currentYearHolidays.map((h) => (
+                          <li key={h.id} className="text-xs text-blue-600 dark:text-blue-400 flex justify-between">
+                            <span>{h.name}</span>
+                            <span className="text-blue-400">
+                              {new Date(h.date).toLocaleDateString("es-ES", {
+                                day: "numeric",
+                                month: "short",
+                                timeZone: "UTC",
+                              })}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null;
+                })()}
               </div>
             ) : (
               <div className="space-y-3">

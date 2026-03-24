@@ -33,6 +33,7 @@ export default async function VacationsPage() {
           lastName: true,
           vacationDaysPerYear: true,
           vacationDaysCarryOver: true,
+          vacationDaysUsedExternal: true,
           holidays: {
             include: { holiday: true },
             orderBy: { holiday: { date: "asc" } },
@@ -60,9 +61,11 @@ export default async function VacationsPage() {
     const currentYearRequests = requests.filter(
       (r) => r.startDate >= yearStart && r.startDate <= yearEnd
     );
-    const usedThisYear = currentYearRequests
-      .filter((r) => r.status === "APPROVED")
-      .reduce((s, r) => s + r.workingDaysRequested, 0);
+    const usedThisYear =
+      currentYearRequests
+        .filter((r) => r.status === "APPROVED")
+        .reduce((s, r) => s + r.workingDaysRequested, 0) +
+      (user.vacationDaysUsedExternal ?? 0);
     const pendingThisYear = currentYearRequests
       .filter((r) => r.status === "PENDING")
       .reduce((s, r) => s + r.workingDaysRequested, 0);
