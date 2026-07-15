@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChevronLeft, QrCode, ArrowRightLeft, X, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
+import { ChevronLeft, QrCode, ArrowRightLeft, X, CheckCircle2, XCircle, MinusCircle, Truck, MapPin } from "lucide-react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 type Tab = "info" | "history" | "transfers";
@@ -36,11 +36,14 @@ interface InventoryItem {
   status: "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED";
   assignedToId?: string | null;
   squadId?: string | null;
+  vehicleId?: string | null;
+  location?: string;
   addedById: string;
   createdAt: string;
   updatedAt: string;
   assignedTo?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null;
   squad?: { id: string; name: string } | null;
+  vehicle?: { id: string; name: string; plate?: string } | null;
   addedBy: { id: string; firstName: string; lastName: string };
   photos?: ItemPhoto[];
   isElectronic: boolean;
@@ -73,12 +76,19 @@ interface Squad {
   name: string;
 }
 
+interface Vehicle {
+  id: string;
+  name: string;
+  plate: string;
+}
+
 interface InventoryItemDetailProps {
   item: InventoryItem;
   isAdmin: boolean;
   currentUserId: string;
   technicians: Technician[];
   squads?: Squad[];
+  vehicles?: Vehicle[];
   transfers: TransferRecord[];
   canEdit: boolean;
   canTransfer: boolean;
@@ -128,6 +138,7 @@ export function InventoryItemDetail({
   currentUserId,
   technicians,
   squads = [],
+  vehicles = [],
   transfers,
   canEdit,
   canTransfer,
@@ -288,6 +299,28 @@ export function InventoryItemDetail({
                     <p className="text-xs text-muted-foreground">Cuadrilla</p>
                   </div>
                 </div>
+              ) : item.vehicle ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+                    <Truck className="h-4 w-4 text-[#1E3A5F]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{item.vehicle.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Vehículo{item.vehicle.plate ? ` · ${item.vehicle.plate}` : ""}
+                    </p>
+                  </div>
+                </div>
+              ) : item.location ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="h-4 w-4 text-[#1E3A5F]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{item.location}</p>
+                    <p className="text-xs text-muted-foreground">Ubicación</p>
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Sin asignar</p>
               )}
@@ -311,6 +344,7 @@ export function InventoryItemDetail({
                 currentUserId={currentUserId}
                 technicians={technicians}
                 squads={squads}
+                vehicles={vehicles}
                 initialData={{
                   id: item.id,
                   name: item.name,
@@ -319,6 +353,8 @@ export function InventoryItemDetail({
                   status: item.status,
                   assignedToId: item.assignedToId,
                   squadId: item.squadId,
+                  vehicleId: item.vehicleId,
+                  location: item.location,
                   photos,
                 }}
               />

@@ -18,6 +18,18 @@ export const updateInventoryItemSchema = z.object({
   assignedToId: z.string().optional().nullable(),
 });
 
+export const bulkAssignSchema = z
+  .object({
+    itemIds: z.array(z.string().min(1)).min(1, "Selecciona al menos un ítem").max(500),
+    target: z.discriminatedUnion("type", [
+      z.object({ type: z.literal("technician"), id: z.string().min(1) }),
+      z.object({ type: z.literal("squad"), id: z.string().min(1) }),
+      z.object({ type: z.literal("vehicle"), id: z.string().min(1) }),
+      z.object({ type: z.literal("location"), location: z.string().min(1, "Escribe la ubicación").max(200) }),
+      z.object({ type: z.literal("unassign") }),
+    ]),
+  });
+
 export const createTransferRequestSchema = z.object({
   itemId: z.string().min(1),
   toUserId: z.string().min(1, "Debes seleccionar un técnico destinatario"),

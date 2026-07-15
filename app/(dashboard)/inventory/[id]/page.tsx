@@ -26,11 +26,14 @@ export default async function InventoryItemPage({
       status: true,
       assignedToId: true,
       squadId: true,
+      vehicleId: true,
+      location: true,
       addedById: true,
       createdAt: true,
       updatedAt: true,
       assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
       squad: { select: { id: true, name: true } },
+      vehicle: { select: { id: true, name: true, plate: true } },
       addedBy: { select: { id: true, firstName: true, lastName: true } },
       photos: { select: { id: true, url: true, order: true }, orderBy: { order: "asc" } },
       isElectronic: true,
@@ -46,7 +49,7 @@ export default async function InventoryItemPage({
 
   const isAdmin = session.user.role === "ADMIN";
 
-  const [technicians, squads, transfers] = await Promise.all([
+  const [technicians, squads, vehicles, transfers] = await Promise.all([
     isAdmin
       ? prisma.user.findMany({
           where: { isActive: true },
@@ -69,6 +72,13 @@ export default async function InventoryItemPage({
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         }),
+    isAdmin
+      ? prisma.vehicle.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, plate: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
     prisma.transferRequest.findMany({
       where: { itemId: id },
       select: {
@@ -111,6 +121,7 @@ export default async function InventoryItemPage({
       currentUserId={session.user.id}
       technicians={technicians}
       squads={squads}
+      vehicles={vehicles}
       transfers={serializedTransfers}
       canEdit={canEdit}
       canTransfer={canTransfer}

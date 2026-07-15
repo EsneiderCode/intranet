@@ -15,11 +15,14 @@ const itemSelect = {
   status: true,
   assignedToId: true,
   squadId: true,
+  vehicleId: true,
+  location: true,
   addedById: true,
   createdAt: true,
   updatedAt: true,
   assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
   squad: { select: { id: true, name: true } },
+  vehicle: { select: { id: true, name: true, plate: true } },
   addedBy: { select: { id: true, firstName: true, lastName: true } },
   photos: { select: { id: true, url: true, order: true }, orderBy: { order: "asc" as const } },
 };
@@ -64,18 +67,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const status = formData.get("status") as string | null;
     const assignedToId = formData.get("assignedToId") as string | null;
     const squadId = formData.get("squadId") as string | null;
+    const vehicleId = formData.get("vehicleId") as string | null;
+    const location = ((formData.get("location") as string | null) ?? "").trim();
 
     if (name) updateData.name = name;
     if (description !== null) updateData.description = description;
     if (status) updateData.status = status;
 
     if (session.user.role === "ADMIN") {
-      if (squadId !== null && squadId !== "" && squadId !== "none") {
+      if (vehicleId !== null && vehicleId !== "" && vehicleId !== "none") {
+        updateData.vehicleId = vehicleId;
+        updateData.squadId = null;
+        updateData.assignedToId = null;
+        updateData.location = "";
+      } else if (squadId !== null && squadId !== "" && squadId !== "none") {
         updateData.squadId = squadId;
         updateData.assignedToId = null;
-      } else {
-        // squadId is "none" or empty — clear squad and process assignedToId
+        updateData.vehicleId = null;
+        updateData.location = "";
+      } else if (location) {
+        updateData.location = location;
+        updateData.assignedToId = null;
         updateData.squadId = null;
+        updateData.vehicleId = null;
+      } else {
+        // squadId/vehicleId/location are "none" or empty — clear them and process assignedToId
+        updateData.squadId = null;
+        updateData.vehicleId = null;
+        updateData.location = "";
         if (assignedToId !== null) {
           updateData.assignedToId = assignedToId === "none" ? null : assignedToId;
         }
@@ -155,6 +174,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updateData.squadId !== undefined &&
     updateData.squadId !== item.squadId;
 
+  const reassignedToVehicle =
+    session.user.role === "ADMIN" &&
+    updateData.vehicleId !== undefined &&
+    updateData.vehicleId !== item.vehicleId;
+
+  const reassignedToLocation =
+    session.user.role === "ADMIN" &&
+    updateData.location !== undefined &&
+    updateData.location !== item.location;
+
   const updated = await prisma.inventoryItem.update({
     where: { id },
     data: updateData,
@@ -174,7 +203,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  if (reassignedToUser || reassignedToSquad) {
+  if (reassignedToUser || reassignedToSquad || reassignedToVehicle || reassignedToLocation) {
     let notes = "";
     if (reassignedToSquad && updateData.squadId) {
       const sq = await prisma.squad.findUnique({
@@ -182,6 +211,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         select: { name: true },
       });
       notes = `Asignado a cuadrilla "${sq?.name ?? updateData.squadId}"`;
+    }
+    if (reassignedToVehicle && updateData.vehicleId) {
+      const vh = await prisma.vehicle.findUnique({
+        where: { id: updateData.vehicleId as string },
+        select: { name: true },
+      });
+      notes = `Ubicado en vehículo "${vh?.name ?? updateData.vehicleId}"`;
+    }
+    if (reassignedToLocation && updateData.location) {
+      notes = `Ubicado en "${updateData.location}"`;
     }
     await prisma.inventoryHistory.create({
       data: {

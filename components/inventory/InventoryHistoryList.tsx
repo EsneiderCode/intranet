@@ -7,6 +7,7 @@ type HistoryAction =
   | "CREATED"
   | "UPDATED"
   | "ASSIGNED"
+  | "UNASSIGNED"
   | "TRANSFERRED"
   | "STATUS_CHANGED"
   | "DELETED";
@@ -26,6 +27,7 @@ const ACTION_LABELS: Record<HistoryAction, string> = {
   CREATED: "Creado",
   UPDATED: "Actualizado",
   ASSIGNED: "Asignado",
+  UNASSIGNED: "Desasignado",
   TRANSFERRED: "Transferido",
   STATUS_CHANGED: "Estado cambiado",
   DELETED: "Eliminado",
@@ -35,6 +37,7 @@ const ACTION_COLORS: Record<HistoryAction, string> = {
   CREATED: "bg-green-100 text-green-800",
   UPDATED: "bg-blue-100 text-blue-800",
   ASSIGNED: "bg-purple-100 text-purple-800",
+  UNASSIGNED: "bg-gray-100 text-gray-700",
   TRANSFERRED: "bg-orange-100 text-orange-800",
   STATUS_CHANGED: "bg-yellow-100 text-yellow-800",
   DELETED: "bg-red-100 text-red-800",

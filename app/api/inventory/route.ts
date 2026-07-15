@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") ?? "";
   const assignedToId = searchParams.get("assignedToId") ?? "";
   const squadId = searchParams.get("squadId") ?? "";
+  const vehicleId = searchParams.get("vehicleId") ?? "";
 
   let ownerFilter: Record<string, unknown> = {};
 
@@ -34,11 +35,13 @@ export async function GET(req: NextRequest) {
   } else {
     // Admin filters
     if (assignedToId === "unassigned") {
-      ownerFilter = { assignedToId: null, squadId: null };
+      ownerFilter = { assignedToId: null, squadId: null, vehicleId: null, location: "" };
     } else if (assignedToId) {
       ownerFilter = { assignedToId };
     } else if (squadId) {
       ownerFilter = { squadId };
+    } else if (vehicleId) {
+      ownerFilter = { vehicleId };
     }
   }
 
@@ -66,6 +69,8 @@ export async function GET(req: NextRequest) {
       status: true,
       assignedToId: true,
       squadId: true,
+      vehicleId: true,
+      location: true,
       addedById: true,
       createdAt: true,
       updatedAt: true,
@@ -74,6 +79,9 @@ export async function GET(req: NextRequest) {
       },
       squad: {
         select: { id: true, name: true },
+      },
+      vehicle: {
+        select: { id: true, name: true, plate: true },
       },
       addedBy: {
         select: { id: true, firstName: true, lastName: true },
@@ -99,6 +107,8 @@ export async function POST(req: NextRequest) {
   let status = "AVAILABLE";
   let assignedToId: string | null = null;
   let squadId: string | null = null;
+  let vehicleId: string | null = null;
+  let location = "";
   let imageUrl = "";
   const extraImages: File[] = [];
   let isElectronic = false;
@@ -117,6 +127,9 @@ export async function POST(req: NextRequest) {
     assignedToId = rawAssigned && rawAssigned !== "none" ? rawAssigned : null;
     const rawSquad = formData.get("squadId") as string | null;
     squadId = rawSquad && rawSquad !== "none" ? rawSquad : null;
+    const rawVehicle = formData.get("vehicleId") as string | null;
+    vehicleId = rawVehicle && rawVehicle !== "none" ? rawVehicle : null;
+    location = ((formData.get("location") as string | null) ?? "").trim();
 
     isElectronic = formData.get("isElectronic") === "true";
     const rawBrokenParts = formData.get("checklistBrokenParts") as string | null;
@@ -166,6 +179,8 @@ export async function POST(req: NextRequest) {
     status = body.status ?? "AVAILABLE";
     assignedToId = body.assignedToId ?? null;
     squadId = body.squadId ?? null;
+    vehicleId = body.vehicleId ?? null;
+    location = (body.location ?? "").trim();
     isElectronic = body.isElectronic ?? false;
     checklistBrokenParts = body.checklistBrokenParts;
     checklistCase = body.checklistCase;
@@ -181,20 +196,24 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Technician auto-assigns to themselves (ignore squad)
+    // Technician auto-assigns to themselves (ignore squad/vehicle/location)
     let effectiveAssignedToId: string | null = null;
     let effectiveSquadId: string | null = null;
+    let effectiveVehicleId: string | null = null;
+    let effectiveLocation = "";
 
     if (session.user.role === "TECHNICIAN") {
       effectiveAssignedToId = session.user.id;
     } else {
-      // Admin: squad takes priority if provided
-      if (squadId) {
+      // Admin: vehicle > squad > location > technician if provided
+      if (vehicleId) {
+        effectiveVehicleId = vehicleId;
+      } else if (squadId) {
         effectiveSquadId = squadId;
-        effectiveAssignedToId = null;
+      } else if (location) {
+        effectiveLocation = location;
       } else {
         effectiveAssignedToId = assignedToId;
-        effectiveSquadId = null;
       }
     }
 
@@ -207,6 +226,8 @@ export async function POST(req: NextRequest) {
         status: status as "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED",
         assignedToId: effectiveAssignedToId,
         squadId: effectiveSquadId,
+        vehicleId: effectiveVehicleId,
+        location: effectiveLocation,
         addedById: session.user.id,
         isElectronic,
         checklistBrokenParts: checklistBrokenParts ?? null,
@@ -236,9 +257,12 @@ export async function POST(req: NextRequest) {
         status: true,
         assignedToId: true,
         squadId: true,
+        vehicleId: true,
+        location: true,
         createdAt: true,
         assignedTo: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
         squad: { select: { id: true, name: true } },
+        vehicle: { select: { id: true, name: true, plate: true } },
         addedBy: { select: { id: true, firstName: true, lastName: true } },
       },
     });
@@ -262,6 +286,11 @@ export async function POST(req: NextRequest) {
     } else if (effectiveSquadId) {
       const sq = await prisma.squad.findUnique({ where: { id: effectiveSquadId }, select: { name: true } });
       assignedLabel = `cuadrilla "${sq?.name ?? effectiveSquadId}"`;
+    } else if (effectiveVehicleId) {
+      const vh = await prisma.vehicle.findUnique({ where: { id: effectiveVehicleId }, select: { name: true } });
+      assignedLabel = `vehículo "${vh?.name ?? effectiveVehicleId}"`;
+    } else if (effectiveLocation) {
+      assignedLabel = `ubicación "${effectiveLocation}"`;
     }
 
     // Log CREATED history
@@ -276,14 +305,18 @@ export async function POST(req: NextRequest) {
     });
 
     // If assigned, also log ASSIGNED
-    if (effectiveAssignedToId || effectiveSquadId) {
+    if (effectiveAssignedToId || effectiveSquadId || effectiveVehicleId || effectiveLocation) {
       await prisma.inventoryHistory.create({
         data: {
           itemId: item.id,
           action: "ASSIGNED",
           toUserId: effectiveAssignedToId,
           performedById: session.user.id,
-          notes: effectiveSquadId ? `Asignado a cuadrilla` : undefined,
+          notes: effectiveSquadId
+            ? `Asignado a cuadrilla`
+            : effectiveVehicleId || effectiveLocation
+            ? `Ubicado en ${assignedLabel}`
+            : undefined,
         },
       });
     }

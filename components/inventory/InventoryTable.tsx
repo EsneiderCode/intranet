@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/select";
 import { ItemStatusBadge } from "./ItemStatusBadge";
 import { QRCodeModal } from "./QRCodeModal";
+import { BulkAssignDialog } from "./BulkAssignDialog";
+import { InventoryGrouped } from "./InventoryGrouped";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,12 @@ import {
   QrCode,
   Plus,
   HardHat,
+  Truck,
+  MapPin,
+  List,
+  LayoutGrid,
+  ArrowRightLeft,
+  X,
 } from "lucide-react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
@@ -53,9 +61,12 @@ export interface InventoryRow {
   status: "AVAILABLE" | "IN_USE" | "IN_REPAIR" | "DECOMMISSIONED";
   assignedToId?: string | null;
   squadId?: string | null;
+  vehicleId?: string | null;
+  location?: string;
   createdAt: string;
   assignedTo?: { id: string; firstName: string; lastName: string; avatarUrl?: string | null } | null;
   squad?: { id: string; name: string } | null;
+  vehicle?: { id: string; name: string; plate?: string } | null;
   addedBy: { id: string; firstName: string; lastName: string };
 }
 
@@ -70,12 +81,18 @@ interface Squad {
   name: string;
 }
 
+interface Vehicle {
+  id: string;
+  name: string;
+}
+
 interface InventoryTableProps {
   data: InventoryRow[];
   isAdmin: boolean;
   currentUserId: string;
   technicians?: Technician[];
   squads?: Squad[];
+  vehicles?: Vehicle[];
 }
 
 const col = createColumnHelper<InventoryRow>();
@@ -88,7 +105,7 @@ const STATUS_OPTIONS = [
   { value: "DECOMMISSIONED", label: "Dado de baja" },
 ];
 
-export function InventoryTable({ data, isAdmin, currentUserId, technicians = [], squads = [] }: InventoryTableProps) {
+export function InventoryTable({ data, isAdmin, currentUserId, technicians = [], squads = [], vehicles = [] }: InventoryTableProps) {
   const router = useRouter();
   const ITEMS_PER_PAGE = 20;
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -96,13 +113,69 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [technicianFilter, setTechnicianFilter] = useState("ALL");
   const [squadFilter, setSquadFilter] = useState("ALL");
+  const [vehicleFilter, setVehicleFilter] = useState("ALL");
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [qrModal, setQrModal] = useState<{ open: boolean; item: InventoryRow } | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: InventoryRow } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grouped">("list");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDialog, setBulkDialog] = useState<{ ids: string[]; label?: string } | null>(null);
+
+  function toggleItemSelection(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleManySelection(ids: string[], checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
 
   const columns = [
+    ...(isAdmin
+      ? [
+          col.display({
+            id: "select",
+            enableSorting: false,
+            header: () => (
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[#1E3A5F] cursor-pointer align-middle"
+                checked={filteredData.length > 0 && filteredData.every((d) => selected.has(d.id))}
+                onChange={(e) =>
+                  toggleManySelection(
+                    filteredData.map((d) => d.id),
+                    e.target.checked
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+                title="Seleccionar todo"
+              />
+            ),
+            cell: ({ row }) => (
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[#1E3A5F] cursor-pointer align-middle"
+                checked={selected.has(row.original.id)}
+                onChange={() => toggleItemSelection(row.original.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ),
+          }),
+        ]
+      : []),
     col.accessor("name", {
       header: "Ítem",
       cell: ({ row }) => (
@@ -135,6 +208,10 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           ? `${row.assignedTo.firstName} ${row.assignedTo.lastName}`
           : row.squad
           ? row.squad.name
+          : row.vehicle
+          ? row.vehicle.name
+          : row.location
+          ? row.location
           : "Sin asignar",
       {
         id: "assignedTo",
@@ -169,6 +246,26 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               </div>
             );
           }
+          if (row.original.vehicle) {
+            return (
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+                  <Truck className="h-3.5 w-3.5 text-[#1E3A5F]" />
+                </div>
+                <span className="text-sm">{row.original.vehicle.name}</span>
+              </div>
+            );
+          }
+          if (row.original.location) {
+            return (
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="h-3.5 w-3.5 text-[#1E3A5F]" />
+                </div>
+                <span className="text-sm">{row.original.location}</span>
+              </div>
+            );
+          }
           return <span className="text-sm text-muted-foreground">Sin asignar</span>;
         },
       }
@@ -194,7 +291,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
     }
     if (technicianFilter !== "ALL") {
       if (technicianFilter === "UNASSIGNED") {
-        result = result.filter((d) => !d.assignedToId && !d.squadId);
+        result = result.filter((d) => !d.assignedToId && !d.squadId && !d.vehicleId);
       } else {
         result = result.filter((d) => d.assignedToId === technicianFilter);
       }
@@ -202,8 +299,11 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
     if (squadFilter !== "ALL") {
       result = result.filter((d) => d.squadId === squadFilter);
     }
+    if (vehicleFilter !== "ALL") {
+      result = result.filter((d) => d.vehicleId === vehicleFilter);
+    }
     return result;
-  }, [data, statusFilter, technicianFilter, squadFilter]);
+  }, [data, statusFilter, technicianFilter, squadFilter, vehicleFilter]);
 
   const table = useReactTable({
     data: filteredData,
@@ -215,7 +315,8 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
       const q = filterValue.toLowerCase();
       return (
         row.original.name.toLowerCase().includes(q) ||
-        row.original.description.toLowerCase().includes(q)
+        row.original.description.toLowerCase().includes(q) ||
+        (row.original.location ?? "").toLowerCase().includes(q)
       );
     },
     getCoreRowModel: getCoreRowModel(),
@@ -225,7 +326,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
 
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE);
-  }, [globalFilter, statusFilter, technicianFilter, squadFilter]);
+  }, [globalFilter, statusFilter, technicianFilter, squadFilter, vehicleFilter]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -240,7 +341,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, []);
+  }, [viewMode]);
 
   const allRows = table.getRowModel().rows;
   const visibleRows = allRows.slice(0, visibleCount);
@@ -285,7 +386,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           </Select>
           {isAdmin && technicians.length > 0 && (
             <Select
-              onValueChange={(v) => { setTechnicianFilter(v); if (v !== "ALL") setSquadFilter("ALL"); }}
+              onValueChange={(v) => { setTechnicianFilter(v); if (v !== "ALL") { setSquadFilter("ALL"); setVehicleFilter("ALL"); } }}
               value={technicianFilter}
             >
               <SelectTrigger className="w-full sm:w-56">
@@ -304,7 +405,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           )}
           {isAdmin && squads.length > 0 && (
             <Select
-              onValueChange={(v) => { setSquadFilter(v); if (v !== "ALL") setTechnicianFilter("ALL"); }}
+              onValueChange={(v) => { setSquadFilter(v); if (v !== "ALL") { setTechnicianFilter("ALL"); setVehicleFilter("ALL"); } }}
               value={squadFilter}
             >
               <SelectTrigger className="w-full sm:w-52">
@@ -320,16 +421,105 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               </SelectContent>
             </Select>
           )}
+          {isAdmin && vehicles.length > 0 && (
+            <Select
+              onValueChange={(v) => { setVehicleFilter(v); if (v !== "ALL") { setTechnicianFilter("ALL"); setSquadFilter("ALL"); } }}
+              value={vehicleFilter}
+            >
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos los vehículos</SelectItem>
+                {vehicles.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-        <Link href="/inventory/new">
-          <Button className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white gap-2 w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            Nuevo ítem
-          </Button>
-        </Link>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex rounded-lg border overflow-hidden flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                viewMode === "list"
+                  ? "bg-[#1E3A5F] text-white"
+                  : "bg-background text-muted-foreground hover:text-foreground"
+              }`}
+              title="Vista de lista"
+            >
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("grouped")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                viewMode === "grouped"
+                  ? "bg-[#1E3A5F] text-white"
+                  : "bg-background text-muted-foreground hover:text-foreground"
+              }`}
+              title="Vista agrupada"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Agrupado</span>
+            </button>
+          </div>
+          <Link href="/inventory/new" className="flex-1 sm:flex-initial">
+            <Button className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white gap-2 w-full sm:w-auto">
+              <Plus className="h-4 w-4" />
+              Nuevo ítem
+            </Button>
+          </Link>
+        </div>
       </div>
 
+      {/* Bulk actions bar */}
+      {isAdmin && selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#1E3A5F]/30 bg-[#1E3A5F]/5 px-4 py-2.5">
+          <p className="text-sm font-medium text-[#1E3A5F]">
+            {selected.size} ítem(s) seleccionado(s)
+          </p>
+          <div className="flex gap-2 ml-auto">
+            <Button
+              size="sm"
+              className="bg-[#1E3A5F] hover:bg-[#162d4a] text-white gap-1.5"
+              onClick={() => setBulkDialog({ ids: Array.from(selected) })}
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              Mover / Asignar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setSelected(new Set())}
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpiar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Grouped view */}
+      {viewMode === "grouped" && (
+        <InventoryGrouped
+          items={allRows.map((r) => r.original)}
+          isAdmin={isAdmin}
+          selected={selected}
+          onToggleItem={toggleItemSelection}
+          onToggleGroup={toggleManySelection}
+          onMoveGroup={(ids, label) => setBulkDialog({ ids, label })}
+        />
+      )}
+
       {/* Desktop table */}
+      {viewMode === "list" && (
       <div className="hidden md:block rounded-lg border overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
@@ -338,18 +528,25 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
                 {hg.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer select-none"
-                    onClick={header.column.getToggleSortingHandler()}
+                    className={`text-left px-4 py-3 font-medium text-muted-foreground select-none ${
+                      header.column.getCanSort() ? "cursor-pointer" : ""
+                    }`}
+                    onClick={
+                      header.column.getCanSort()
+                        ? header.column.getToggleSortingHandler()
+                        : undefined
+                    }
                   >
                     <div className="flex items-center gap-1">
                       {flexRender(header.column.columnDef.header, header.getContext())}
-                      {header.column.getIsSorted() === "asc" ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : header.column.getIsSorted() === "desc" ? (
-                        <ChevronDown className="h-3 w-3" />
-                      ) : (
-                        <ChevronsUpDown className="h-3 w-3 opacity-30" />
-                      )}
+                      {header.column.getCanSort() &&
+                        (header.column.getIsSorted() === "asc" ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : header.column.getIsSorted() === "desc" ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronsUpDown className="h-3 w-3 opacity-30" />
+                        ))}
                     </div>
                   </th>
                 ))}
@@ -413,8 +610,10 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           </tbody>
         </table>
       </div>
+      )}
 
       {/* Mobile cards */}
+      {viewMode === "list" && (
       <div className="md:hidden space-y-3">
         {allRows.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">No hay resultados.</p>
@@ -426,6 +625,15 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               onClick={() => router.push(`/inventory/${row.original.id}`)}
             >
               <div className="flex items-start gap-3">
+                {isAdmin && (
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[#1E3A5F] cursor-pointer flex-shrink-0 mt-1"
+                    checked={selected.has(row.original.id)}
+                    onChange={() => toggleItemSelection(row.original.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
                 <div className="h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
                   {row.original.imageUrl ? (
                     <Image src={row.original.imageUrl} alt={row.original.name} fill className="object-cover" />
@@ -468,6 +676,18 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
                   <span className="text-xs text-muted-foreground">{row.original.squad.name}</span>
                 </div>
               )}
+              {row.original.vehicle && !row.original.assignedTo && !row.original.squad && (
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-[#1E3A5F]" />
+                  <span className="text-xs text-muted-foreground">{row.original.vehicle.name}</span>
+                </div>
+              )}
+              {row.original.location && !row.original.assignedTo && !row.original.squad && !row.original.vehicle && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-[#1E3A5F]" />
+                  <span className="text-xs text-muted-foreground">{row.original.location}</span>
+                </div>
+              )}
 
               <div className="flex gap-2 justify-end flex-wrap" onClick={(e) => e.stopPropagation()}>
                 <Button
@@ -503,17 +723,36 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           ))
         )}
       </div>
+      )}
 
       {/* Infinite scroll sentinel + count */}
-      <div className="flex items-center justify-between py-2">
-        <p className="text-sm text-muted-foreground">
-          {visibleRows.length} de {allRows.length} ítem(s)
-        </p>
-        {hasMore && (
-          <p className="text-xs text-muted-foreground">Desplázate para cargar más</p>
-        )}
-      </div>
-      <div ref={sentinelRef} className="h-4" />
+      {viewMode === "list" && (
+        <>
+          <div className="flex items-center justify-between py-2">
+            <p className="text-sm text-muted-foreground">
+              {visibleRows.length} de {allRows.length} ítem(s)
+            </p>
+            {hasMore && (
+              <p className="text-xs text-muted-foreground">Desplázate para cargar más</p>
+            )}
+          </div>
+          <div ref={sentinelRef} className="h-4" />
+        </>
+      )}
+
+      {/* Bulk assign dialog */}
+      {bulkDialog && (
+        <BulkAssignDialog
+          open={!!bulkDialog}
+          onClose={() => setBulkDialog(null)}
+          itemIds={bulkDialog.ids}
+          contextLabel={bulkDialog.label}
+          technicians={technicians}
+          squads={squads}
+          vehicles={vehicles}
+          onDone={() => setSelected(new Set())}
+        />
+      )}
 
       {/* QR Modal */}
       {qrModal && (

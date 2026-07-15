@@ -26,6 +26,12 @@ interface Squad {
   name: string;
 }
 
+interface Vehicle {
+  id: string;
+  name: string;
+  plate: string;
+}
+
 interface ExistingPhoto {
   id: string;
   url: string;
@@ -37,6 +43,7 @@ interface InventoryFormProps {
   currentUserId: string;
   technicians?: Technician[];
   squads?: Squad[];
+  vehicles?: Vehicle[];
   initialData?: {
     id: string;
     name: string;
@@ -45,6 +52,8 @@ interface InventoryFormProps {
     status: string;
     assignedToId?: string | null;
     squadId?: string | null;
+    vehicleId?: string | null;
+    location?: string;
     photos?: ExistingPhoto[];
   };
 }
@@ -141,6 +150,7 @@ export function InventoryForm({
   currentUserId,
   technicians = [],
   squads = [],
+  vehicles = [],
   initialData,
 }: InventoryFormProps) {
   const router = useRouter();
@@ -149,14 +159,22 @@ export function InventoryForm({
   const [name, setName] = useState(initialData?.name ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [status, setStatus] = useState(initialData?.status ?? "AVAILABLE");
-  // Assignment type toggle for admin: "technician" or "squad"
-  const [assignmentType, setAssignmentType] = useState<"technician" | "squad">(
-    initialData?.squadId ? "squad" : "technician"
+  // Assignment type toggle for admin: "technician", "squad", "vehicle" or "location"
+  const [assignmentType, setAssignmentType] = useState<"technician" | "squad" | "vehicle" | "location">(
+    initialData?.location
+      ? "location"
+      : initialData?.vehicleId
+      ? "vehicle"
+      : initialData?.squadId
+      ? "squad"
+      : "technician"
   );
   const [assignedToId, setAssignedToId] = useState(
     initialData?.assignedToId ?? (isAdmin ? "none" : currentUserId)
   );
   const [squadId, setSquadId] = useState(initialData?.squadId ?? "none");
+  const [vehicleId, setVehicleId] = useState(initialData?.vehicleId ?? "none");
+  const [location, setLocation] = useState(initialData?.location ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(initialData?.imageUrl ?? "");
 
@@ -247,12 +265,26 @@ export function InventoryForm({
     formData.append("description", description.trim());
     formData.append("status", status);
     if (isAdmin) {
-      if (assignmentType === "squad") {
+      if (assignmentType === "vehicle") {
+        formData.append("vehicleId", vehicleId);
+        formData.append("squadId", "none");
+        formData.append("assignedToId", "none");
+        formData.append("location", "");
+      } else if (assignmentType === "squad") {
         formData.append("squadId", squadId);
         formData.append("assignedToId", "none");
+        formData.append("vehicleId", "none");
+        formData.append("location", "");
+      } else if (assignmentType === "location") {
+        formData.append("location", location.trim());
+        formData.append("assignedToId", "none");
+        formData.append("squadId", "none");
+        formData.append("vehicleId", "none");
       } else {
         formData.append("assignedToId", assignedToId);
         formData.append("squadId", "none");
+        formData.append("vehicleId", "none");
+        formData.append("location", "");
       }
     }
     if (imageFile) {
@@ -462,31 +494,29 @@ export function InventoryForm({
       {isAdmin && (
         <div className="space-y-2">
           <Label>Asignación</Label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setAssignmentType("technician")}
-              className={cn(
-                "flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
-                assignmentType === "technician"
-                  ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
-                  : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
-              )}
-            >
-              Técnico individual
-            </button>
-            <button
-              type="button"
-              onClick={() => setAssignmentType("squad")}
-              className={cn(
-                "flex-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
-                assignmentType === "squad"
-                  ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
-                  : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
-              )}
-            >
-              Cuadrilla
-            </button>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {(
+              [
+                { key: "technician", label: "Técnico" },
+                { key: "squad", label: "Cuadrilla" },
+                { key: "vehicle", label: "Vehículo" },
+                { key: "location", label: "Ubicación" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setAssignmentType(opt.key)}
+                className={cn(
+                  "px-3 py-2 rounded-lg border text-sm font-medium transition-colors",
+                  assignmentType === opt.key
+                    ? "border-[#1E3A5F] bg-[#1E3A5F]/5 text-[#1E3A5F]"
+                    : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
           {assignmentType === "technician" ? (
             <Select onValueChange={setAssignedToId} value={assignedToId}>
@@ -502,7 +532,7 @@ export function InventoryForm({
                 ))}
               </SelectContent>
             </Select>
-          ) : (
+          ) : assignmentType === "squad" ? (
             <Select onValueChange={setSquadId} value={squadId}>
               <SelectTrigger>
                 <SelectValue placeholder="Sin asignar" />
@@ -516,6 +546,40 @@ export function InventoryForm({
                 ))}
               </SelectContent>
             </Select>
+          ) : assignmentType === "vehicle" ? (
+            <div className="space-y-1.5">
+              <Select onValueChange={setVehicleId} value={vehicleId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin asignar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin asignar</SelectItem>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.name}
+                      {v.plate ? ` (${v.plate})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {vehicles.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No hay vehículos registrados. Créalos en la sección Vehículos.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Ej: Bodega Hamburgo, Oficina central..."
+                maxLength={200}
+              />
+              <p className="text-xs text-muted-foreground">
+                Escribe libremente el lugar donde queda el ítem.
+              </p>
+            </div>
           )}
         </div>
       )}

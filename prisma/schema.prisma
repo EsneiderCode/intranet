@@ -33,6 +33,7 @@ enum InventoryAction {
   CREATED
   UPDATED
   ASSIGNED
+  UNASSIGNED
   TRANSFERRED
   STATUS_CHANGED
   DELETED
@@ -104,6 +105,7 @@ model User {
   holidaysCreated      Holiday[]          @relation("CreatedBy")
   notifications        Notification[]     @relation("UserNotifications")
   squadsCreated        Squad[]            @relation("SquadCreatedBy")
+  vehiclesCreated      Vehicle[]          @relation("VehicleCreatedBy")
 
   @@map("users")
 }
@@ -117,6 +119,8 @@ model InventoryItem {
   status       ItemStatus @default(AVAILABLE)
   assignedToId String?
   squadId      String?
+  vehicleId    String?
+  location     String     @default("")
   addedById    String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -132,6 +136,7 @@ model InventoryItem {
   // Relations
   assignedTo       User?               @relation("AssignedTo", fields: [assignedToId], references: [id])
   squad            Squad?              @relation(fields: [squadId], references: [id])
+  vehicle          Vehicle?            @relation(fields: [vehicleId], references: [id])
   addedBy          User                @relation("AddedBy", fields: [addedById], references: [id])
   history          InventoryHistory[]
   transferRequests TransferRequest[]
@@ -210,6 +215,23 @@ model Squad {
   transfersTo TransferRequest[] @relation("TransferToSquad")
 
   @@map("squads")
+}
+
+model Vehicle {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  plate       String   @default("")
+  description String   @default("")
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdBy User            @relation("VehicleCreatedBy", fields: [createdById], references: [id])
+  items     InventoryItem[]
+
+  @@map("vehicles")
 }
 
 model VacationRequest {

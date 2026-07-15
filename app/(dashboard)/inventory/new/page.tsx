@@ -11,7 +11,7 @@ export default async function NewInventoryItemPage() {
 
   const isAdmin = session.user.role === "ADMIN";
 
-  const [technicians, squads] = await Promise.all([
+  const [technicians, squads, vehicles] = await Promise.all([
     isAdmin
       ? prisma.user.findMany({
           where: { isActive: true },
@@ -23,6 +23,13 @@ export default async function NewInventoryItemPage() {
       ? prisma.squad.findMany({
           where: { isActive: true },
           select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    isAdmin
+      ? prisma.vehicle.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, plate: true },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
@@ -40,6 +47,7 @@ export default async function NewInventoryItemPage() {
         currentUserId={session.user.id}
         technicians={technicians}
         squads={squads}
+        vehicles={vehicles}
       />
     </div>
   );

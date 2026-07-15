@@ -20,7 +20,7 @@ export default async function InventoryPage() {
       })
     : null;
 
-  const [items, technicians, squads] = await Promise.all([
+  const [items, technicians, squads, vehicles] = await Promise.all([
     prisma.inventoryItem.findMany({
       where: isTechnician
         ? {
@@ -39,12 +39,17 @@ export default async function InventoryPage() {
         status: true,
         assignedToId: true,
         squadId: true,
+        vehicleId: true,
+        location: true,
         createdAt: true,
         assignedTo: {
           select: { id: true, firstName: true, lastName: true, avatarUrl: true },
         },
         squad: {
           select: { id: true, name: true },
+        },
+        vehicle: {
+          select: { id: true, name: true, plate: true },
         },
         addedBy: {
           select: { id: true, firstName: true, lastName: true },
@@ -61,6 +66,13 @@ export default async function InventoryPage() {
       : Promise.resolve([]),
     isAdmin
       ? prisma.squad.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    isAdmin
+      ? prisma.vehicle.findMany({
           where: { isActive: true },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
@@ -87,6 +99,7 @@ export default async function InventoryPage() {
         currentUserId={session.user.id}
         technicians={technicians}
         squads={squads}
+        vehicles={vehicles}
       />
     </div>
   );

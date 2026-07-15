@@ -62,6 +62,7 @@ export const NAV_LINKS = {
   vacations: "/vacations",
   users: "/users",
   squads: "/squads",
+  vehicles: "/vehicles",
   reports: "/reports",
   settings: "/settings",
   profile: "/profile",
