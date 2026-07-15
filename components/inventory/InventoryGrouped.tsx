@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback, memo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,55 @@ const KIND_LABELS: Record<GroupKind, string> = {
   unassigned: "",
 };
 
+// Memoized so selecting one item doesn't re-render (and reload images of)
+// every other row in every group
+const GroupedItemRow = memo(function GroupedItemRow({
+  item,
+  isSelected,
+  isAdmin,
+  onToggle,
+  onNavigate,
+}: {
+  item: InventoryRow;
+  isSelected: boolean;
+  isAdmin: boolean;
+  onToggle: (id: string) => void;
+  onNavigate: (id: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
+      onClick={() => onNavigate(item.id)}
+    >
+      {isAdmin && (
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[#1E3A5F] cursor-pointer flex-shrink-0"
+          checked={isSelected}
+          onChange={() => onToggle(item.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+      <div className="h-9 w-9 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
+        {item.imageUrl ? (
+          <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground font-bold">
+            {item.name[0]}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{item.name}</p>
+        {item.description && (
+          <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
+        )}
+      </div>
+      <ItemStatusBadge status={item.status} />
+    </div>
+  );
+});
+
 export function InventoryGrouped({
   items,
   isAdmin,
@@ -72,6 +121,11 @@ export function InventoryGrouped({
 }: InventoryGroupedProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const handleNavigate = useCallback(
+    (id: string) => router.push(`/inventory/${id}`),
+    [router]
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, Group>();
@@ -223,37 +277,14 @@ export function InventoryGrouped({
             {!isCollapsed && (
               <div className="divide-y">
                 {group.items.map((item) => (
-                  <div
+                  <GroupedItemRow
                     key={item.id}
-                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/inventory/${item.id}`)}
-                  >
-                    {isAdmin && (
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-[#1E3A5F] cursor-pointer flex-shrink-0"
-                        checked={selected.has(item.id)}
-                        onChange={() => onToggleItem(item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    )}
-                    <div className="h-9 w-9 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
-                      {item.imageUrl ? (
-                        <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground font-bold">
-                          {item.name[0]}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.name}</p>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
-                      )}
-                    </div>
-                    <ItemStatusBadge status={item.status} />
-                  </div>
+                    item={item}
+                    isSelected={selected.has(item.id)}
+                    isAdmin={isAdmin}
+                    onToggle={onToggleItem}
+                    onNavigate={handleNavigate}
+                  />
                 ))}
               </div>
             )}

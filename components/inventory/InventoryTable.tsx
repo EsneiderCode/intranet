@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,8 @@ import {
   getSortedRowModel,
   useReactTable,
   type SortingState,
+  type RowSelectionState,
+  type Row,
 } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +107,188 @@ const STATUS_OPTIONS = [
   { value: "DECOMMISSIONED", label: "Dado de baja" },
 ];
 
+// Memoized row components: without them every selection click re-renders
+// every visible row (and its images), which makes the page sluggish.
+
+interface RowActionProps {
+  isAdmin: boolean;
+  currentUserId: string;
+  onNavigate: (id: string) => void;
+  onOpenQr: (item: InventoryRow) => void;
+  onOpenDelete: (item: InventoryRow) => void;
+}
+
+const DesktopRow = memo(function DesktopRow({
+  row,
+  isSelected,
+  isAdmin,
+  currentUserId,
+  onNavigate,
+  onOpenQr,
+  onOpenDelete,
+}: RowActionProps & { row: Row<InventoryRow>; isSelected: boolean }) {
+  const item = row.original;
+  const canEditRow = isAdmin || item.assignedToId === currentUserId;
+  return (
+    <tr
+      data-selected={isSelected}
+      className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer data-[selected=true]:bg-[#1E3A5F]/5"
+      onClick={() => onNavigate(item.id)}
+    >
+      {row.getVisibleCells().map((cell) => (
+        <td key={cell.id} className="px-4 py-3">
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </td>
+      ))}
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 w-8 p-0"
+            title="Ver QR"
+            onClick={() => onOpenQr(item)}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+          </Button>
+          {canEditRow && (
+            <Link href={`/inventory/${item.id}`}>
+              <Button size="sm" variant="outline" className="h-8 w-8 p-0" title="Editar">
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          )}
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-8 p-0"
+              title="Eliminar"
+              onClick={() => onOpenDelete(item)}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+const MobileCard = memo(function MobileCard({
+  item,
+  isSelected,
+  isAdmin,
+  currentUserId,
+  onToggle,
+  onNavigate,
+  onOpenQr,
+  onOpenDelete,
+}: RowActionProps & {
+  item: InventoryRow;
+  isSelected: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const canEditRow = isAdmin || item.assignedToId === currentUserId;
+  return (
+    <div
+      className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/30 transition-colors"
+      onClick={() => onNavigate(item.id)}
+    >
+      <div className="flex items-start gap-3">
+        {isAdmin && (
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[#1E3A5F] cursor-pointer flex-shrink-0 mt-1"
+            checked={isSelected}
+            onChange={() => onToggle(item.id)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        <div className="h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
+          {item.imageUrl ? (
+            <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-lg font-bold text-muted-foreground">
+              {item.name[0]}
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium text-sm">{item.name}</p>
+            <ItemStatusBadge status={item.status} />
+          </div>
+          {item.description && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+          )}
+        </div>
+      </div>
+
+      {item.assignedTo && (
+        <div className="flex items-center gap-2">
+          <AvatarPrimitive.Root className="h-5 w-5 rounded-full overflow-hidden bg-muted flex-shrink-0">
+            <AvatarPrimitive.Image
+              src={item.assignedTo.avatarUrl ?? undefined}
+              className="h-full w-full object-cover"
+            />
+            <AvatarPrimitive.Fallback className="h-full w-full flex items-center justify-center text-xs font-semibold text-muted-foreground bg-muted">
+              {item.assignedTo.firstName[0]}
+            </AvatarPrimitive.Fallback>
+          </AvatarPrimitive.Root>
+          <span className="text-xs text-muted-foreground">
+            {item.assignedTo.firstName} {item.assignedTo.lastName}
+          </span>
+        </div>
+      )}
+      {item.squad && !item.assignedTo && (
+        <div className="flex items-center gap-2">
+          <HardHat className="h-4 w-4 text-[#1E3A5F]" />
+          <span className="text-xs text-muted-foreground">{item.squad.name}</span>
+        </div>
+      )}
+      {item.vehicle && !item.assignedTo && !item.squad && (
+        <div className="flex items-center gap-2">
+          <Truck className="h-4 w-4 text-[#1E3A5F]" />
+          <span className="text-xs text-muted-foreground">{item.vehicle.name}</span>
+        </div>
+      )}
+      {item.location && !item.assignedTo && !item.squad && !item.vehicle && (
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-[#1E3A5F]" />
+          <span className="text-xs text-muted-foreground">{item.location}</span>
+        </div>
+      )}
+
+      <div className="flex gap-2 justify-end flex-wrap" onClick={(e) => e.stopPropagation()}>
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onOpenQr(item)}>
+          <QrCode className="h-3.5 w-3.5" />
+          QR
+        </Button>
+        {canEditRow && (
+          <Link href={`/inventory/${item.id}`}>
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
+          </Link>
+        )}
+        {isAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-destructive hover:text-destructive"
+            onClick={() => onOpenDelete(item)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Eliminar
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export function InventoryTable({ data, isAdmin, currentUserId, technicians = [], squads = [], vehicles = [] }: InventoryTableProps) {
   const router = useRouter();
   const ITEMS_PER_PAGE = 20;
@@ -120,46 +304,67 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; item: InventoryRow } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grouped">("list");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [bulkDialog, setBulkDialog] = useState<{ ids: string[]; label?: string } | null>(null);
 
-  function toggleItemSelection(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+  // Derived Set of selected ids for the bulk bar, mobile cards and grouped view
+  const selected = useMemo(() => {
+    const set = new Set<string>();
+    for (const [id, isSelected] of Object.entries(rowSelection)) {
+      if (isSelected) set.add(id);
+    }
+    return set;
+  }, [rowSelection]);
+
+  const toggleItemSelection = useCallback((id: string) => {
+    setRowSelection((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = true;
       return next;
     });
-  }
+  }, []);
 
-  function toggleManySelection(ids: string[], checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
+  const toggleManySelection = useCallback((ids: string[], checked: boolean) => {
+    setRowSelection((prev) => {
+      const next = { ...prev };
       for (const id of ids) {
-        if (checked) next.add(id);
-        else next.delete(id);
+        if (checked) next[id] = true;
+        else delete next[id];
       }
       return next;
     });
-  }
+  }, []);
 
-  const columns = [
+  const clearSelection = useCallback(() => setRowSelection({}), []);
+
+  const handleNavigate = useCallback(
+    (id: string) => router.push(`/inventory/${id}`),
+    [router]
+  );
+  const handleOpenQr = useCallback(
+    (item: InventoryRow) => setQrModal({ open: true, item }),
+    []
+  );
+  const handleOpenDelete = useCallback(
+    (item: InventoryRow) => setDeleteDialog({ open: true, item }),
+    []
+  );
+
+  // Memoized: unstable column identity forces TanStack to rebuild the whole
+  // table (and re-render every row image) on each selection click
+  const columns = useMemo(() => [
     ...(isAdmin
       ? [
           col.display({
             id: "select",
             enableSorting: false,
-            header: () => (
+            header: ({ table }) => (
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-[#1E3A5F] cursor-pointer align-middle"
-                checked={filteredData.length > 0 && filteredData.every((d) => selected.has(d.id))}
-                onChange={(e) =>
-                  toggleManySelection(
-                    filteredData.map((d) => d.id),
-                    e.target.checked
-                  )
-                }
+                checked={table.getIsAllRowsSelected()}
+                onChange={table.getToggleAllRowsSelectedHandler()}
                 onClick={(e) => e.stopPropagation()}
                 title="Seleccionar todo"
               />
@@ -168,8 +373,8 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-[#1E3A5F] cursor-pointer align-middle"
-                checked={selected.has(row.original.id)}
-                onChange={() => toggleItemSelection(row.original.id)}
+                checked={row.getIsSelected()}
+                onChange={row.getToggleSelectedHandler()}
                 onClick={(e) => e.stopPropagation()}
               />
             ),
@@ -282,7 +487,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
         </span>
       ),
     }),
-  ];
+  ], [isAdmin]);
 
   const filteredData = useMemo(() => {
     let result = data;
@@ -308,9 +513,12 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, rowSelection },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: isAdmin,
+    getRowId: (row) => row.id,
     globalFilterFn: (row, _columnId, filterValue: string) => {
       const q = filterValue.toLowerCase();
       return (
@@ -354,11 +562,6 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
     setDeleting(false);
     setDeleteDialog(null);
     router.refresh();
-  }
-
-  function canEdit(item: InventoryRow) {
-    if (isAdmin) return true;
-    return item.assignedToId === currentUserId;
   }
 
   return (
@@ -497,7 +700,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               size="sm"
               variant="outline"
               className="gap-1.5"
-              onClick={() => setSelected(new Set())}
+              onClick={clearSelection}
             >
               <X className="h-3.5 w-3.5" />
               Limpiar
@@ -563,48 +766,16 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
               </tr>
             ) : (
               visibleRows.map((row) => (
-                <tr
+                <DesktopRow
                   key={row.id}
-                  className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/inventory/${row.original.id}`)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        title="Ver QR"
-                        onClick={() => setQrModal({ open: true, item: row.original })}
-                      >
-                        <QrCode className="h-3.5 w-3.5" />
-                      </Button>
-                      {canEdit(row.original) && (
-                        <Link href={`/inventory/${row.original.id}`}>
-                          <Button size="sm" variant="outline" className="h-8 w-8 p-0" title="Editar">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
-                      )}
-                      {isAdmin && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 w-8 p-0"
-                          title="Eliminar"
-                          onClick={() => setDeleteDialog({ open: true, item: row.original })}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                  row={row}
+                  isSelected={selected.has(row.original.id)}
+                  isAdmin={isAdmin}
+                  currentUserId={currentUserId}
+                  onNavigate={handleNavigate}
+                  onOpenQr={handleOpenQr}
+                  onOpenDelete={handleOpenDelete}
+                />
               ))
             )}
           </tbody>
@@ -619,107 +790,17 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           <p className="text-center text-muted-foreground py-8">No hay resultados.</p>
         ) : (
           visibleRows.map((row) => (
-            <div
+            <MobileCard
               key={row.id}
-              className="rounded-lg border bg-card p-4 space-y-3 cursor-pointer hover:bg-muted/30 transition-colors"
-              onClick={() => router.push(`/inventory/${row.original.id}`)}
-            >
-              <div className="flex items-start gap-3">
-                {isAdmin && (
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-[#1E3A5F] cursor-pointer flex-shrink-0 mt-1"
-                    checked={selected.has(row.original.id)}
-                    onChange={() => toggleItemSelection(row.original.id)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                )}
-                <div className="h-16 w-16 rounded-md overflow-hidden bg-muted flex-shrink-0 relative">
-                  {row.original.imageUrl ? (
-                    <Image src={row.original.imageUrl} alt={row.original.name} fill className="object-cover" />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-lg font-bold text-muted-foreground">
-                      {row.original.name[0]}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium text-sm">{row.original.name}</p>
-                    <ItemStatusBadge status={row.original.status} />
-                  </div>
-                  {row.original.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{row.original.description}</p>
-                  )}
-                </div>
-              </div>
-
-              {row.original.assignedTo && (
-                <div className="flex items-center gap-2">
-                  <AvatarPrimitive.Root className="h-5 w-5 rounded-full overflow-hidden bg-muted flex-shrink-0">
-                    <AvatarPrimitive.Image
-                      src={row.original.assignedTo.avatarUrl ?? undefined}
-                      className="h-full w-full object-cover"
-                    />
-                    <AvatarPrimitive.Fallback className="h-full w-full flex items-center justify-center text-xs font-semibold text-muted-foreground bg-muted">
-                      {row.original.assignedTo.firstName[0]}
-                    </AvatarPrimitive.Fallback>
-                  </AvatarPrimitive.Root>
-                  <span className="text-xs text-muted-foreground">
-                    {row.original.assignedTo.firstName} {row.original.assignedTo.lastName}
-                  </span>
-                </div>
-              )}
-              {row.original.squad && !row.original.assignedTo && (
-                <div className="flex items-center gap-2">
-                  <HardHat className="h-4 w-4 text-[#1E3A5F]" />
-                  <span className="text-xs text-muted-foreground">{row.original.squad.name}</span>
-                </div>
-              )}
-              {row.original.vehicle && !row.original.assignedTo && !row.original.squad && (
-                <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-[#1E3A5F]" />
-                  <span className="text-xs text-muted-foreground">{row.original.vehicle.name}</span>
-                </div>
-              )}
-              {row.original.location && !row.original.assignedTo && !row.original.squad && !row.original.vehicle && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-[#1E3A5F]" />
-                  <span className="text-xs text-muted-foreground">{row.original.location}</span>
-                </div>
-              )}
-
-              <div className="flex gap-2 justify-end flex-wrap" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  onClick={() => setQrModal({ open: true, item: row.original })}
-                >
-                  <QrCode className="h-3.5 w-3.5" />
-                  QR
-                </Button>
-                {canEdit(row.original) && (
-                  <Link href={`/inventory/${row.original.id}`}>
-                    <Button size="sm" variant="outline" className="gap-1.5">
-                      <Pencil className="h-3.5 w-3.5" />
-                      Editar
-                    </Button>
-                  </Link>
-                )}
-                {isAdmin && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-destructive hover:text-destructive"
-                    onClick={() => setDeleteDialog({ open: true, item: row.original })}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Eliminar
-                  </Button>
-                )}
-              </div>
-            </div>
+              item={row.original}
+              isSelected={selected.has(row.original.id)}
+              isAdmin={isAdmin}
+              currentUserId={currentUserId}
+              onToggle={toggleItemSelection}
+              onNavigate={handleNavigate}
+              onOpenQr={handleOpenQr}
+              onOpenDelete={handleOpenDelete}
+            />
           ))
         )}
       </div>
@@ -750,7 +831,7 @@ export function InventoryTable({ data, isAdmin, currentUserId, technicians = [],
           technicians={technicians}
           squads={squads}
           vehicles={vehicles}
-          onDone={() => setSelected(new Set())}
+          onDone={clearSelection}
         />
       )}
 
