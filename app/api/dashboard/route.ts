@@ -36,6 +36,7 @@ export async function GET() {
           avatarUrl: true,
           vacationDaysPerYear: true,
           vacationDaysCarryOver: true,
+          vacationDaysUsedExternal: true,
           vacationRequests: {
             where: {
               status: "APPROVED",
@@ -69,10 +70,9 @@ export async function GET() {
 
     // Compute remaining vacation days per technician
     const techStats = techniciansVacationStats.map((t) => {
-      const usedThisYear = t.vacationRequests.reduce(
-        (sum, r) => sum + r.workingDaysRequested,
-        0
-      );
+      const usedThisYear =
+        t.vacationRequests.reduce((sum, r) => sum + r.workingDaysRequested, 0) +
+        (t.vacationDaysUsedExternal ?? 0);
       const remainingThisYear = Math.max(0, t.vacationDaysPerYear - usedThisYear);
       const totalAvailable = remainingThisYear + t.vacationDaysCarryOver;
       return {
@@ -156,6 +156,7 @@ export async function GET() {
       select: {
         vacationDaysPerYear: true,
         vacationDaysCarryOver: true,
+        vacationDaysUsedExternal: true,
         vacationRequests: {
           where: {
             status: "APPROVED",
@@ -191,10 +192,10 @@ export async function GET() {
   ]);
 
   const usedThisYear =
-    userWithVacations?.vacationRequests.reduce(
+    (userWithVacations?.vacationRequests.reduce(
       (sum, r) => sum + r.workingDaysRequested,
       0
-    ) ?? 0;
+    ) ?? 0) + (userWithVacations?.vacationDaysUsedExternal ?? 0);
   const perYear = userWithVacations?.vacationDaysPerYear ?? 25;
   const carryOver = userWithVacations?.vacationDaysCarryOver ?? 0;
   const remainingThisYear = Math.max(0, perYear - usedThisYear);

@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
       lastName: true,
       vacationDaysPerYear: true,
       vacationDaysCarryOver: true,
+      vacationDaysUsedExternal: true,
       vacationRequests: {
         select: {
           startDate: true,
@@ -94,22 +95,32 @@ export async function GET(req: NextRequest) {
   });
 
   const rows: Record<string, string | number>[] = [];
+  const currentYear = new Date().getFullYear();
+  const yearStart = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+  const yearEnd = new Date(`${currentYear}-12-31T23:59:59.999Z`);
 
   for (const u of users) {
-    const usedDays = u.vacationRequests
-      .filter((r) => r.status === "APPROVED")
-      .reduce((s, r) => s + r.workingDaysRequested, 0);
+    const usedDays =
+      u.vacationRequests
+        .filter(
+          (r) =>
+            r.status === "APPROVED" &&
+            r.startDate >= yearStart &&
+            r.startDate <= yearEnd
+        )
+        .reduce((s, r) => s + r.workingDaysRequested, 0) +
+      (u.vacationDaysUsedExternal ?? 0);
     const remainingThisYear = Math.max(0, u.vacationDaysPerYear - usedDays);
-    const totalAvailable = remainingThisYear + u.vacationDaysCarryOver;
+    const remainingTotal = remainingThisYear + u.vacationDaysCarryOver;
 
     // Summary row
     rows.push({
       técnico: `${u.firstName} ${u.lastName}`,
       díasAño: u.vacationDaysPerYear,
       díasAcumulados: u.vacationDaysCarryOver,
-      díasTotalDisponibles: totalAvailable,
+      díasTotalDisponibles: u.vacationDaysPerYear + u.vacationDaysCarryOver,
       díasUsados: usedDays,
-      díasRestantes: totalAvailable - usedDays,
+      díasRestantes: remainingTotal,
       solicitudes: u.vacationRequests.length,
       período: "",
       díasSolicitud: "",

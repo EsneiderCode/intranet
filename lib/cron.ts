@@ -15,7 +15,12 @@ export async function yearCloseJob() {
 
   const users = await prisma.user.findMany({
     where: { isActive: true },
-    select: { id: true, vacationDaysPerYear: true, vacationDaysCarryOver: true },
+    select: {
+      id: true,
+      vacationDaysPerYear: true,
+      vacationDaysCarryOver: true,
+      vacationDaysUsedExternal: true,
+    },
   });
 
   for (const user of users) {
@@ -28,12 +33,17 @@ export async function yearCloseJob() {
       _sum: { workingDaysRequested: true },
     });
 
-    const usedThisYear = result._sum.workingDaysRequested ?? 0;
+    const usedThisYear =
+      (result._sum.workingDaysRequested ?? 0) + (user.vacationDaysUsedExternal ?? 0);
     const unusedDays = Math.max(0, user.vacationDaysPerYear - usedThisYear);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { vacationDaysCarryOver: user.vacationDaysCarryOver + unusedDays },
+      data: {
+        vacationDaysCarryOver: user.vacationDaysCarryOver + unusedDays,
+        // External days belong to the closing year — reset for the new year
+        vacationDaysUsedExternal: 0,
+      },
     });
 
     console.log(
